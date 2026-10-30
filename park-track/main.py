@@ -47,7 +47,8 @@ def main():
             timestamp = (frame_number - 1) / fps if fps > 0 else None
             vehicles = detect_parking(model, frame, timestamp)
             for vehicle in vehicles:
-                writer.writerow({"frame": frame_number, **vehicle})
+                if vehicle["status"] in {"stopped", "parking_candidate"}:
+                    writer.writerow({"frame": frame_number, **vehicle})
 
     capture.release()
 

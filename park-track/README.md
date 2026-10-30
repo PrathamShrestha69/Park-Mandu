@@ -24,7 +24,7 @@ To use a webcam, set `video_source = 0`. A stream URL can be used instead of a f
 
 `main.py` loads `best.pt` once and reads the video one frame at a time. It passes each frame to `detect_parking()` in `detect-parking.py`. ByteTrack keeps vehicle IDs between frames, and the function checks the recent position of each vehicle.
 
-The program writes one row per detected vehicle to `output.csv`, including the frame, time, vehicle ID, class, status, confidence, and bounding box.
+The program writes rows to `output.csv` only while a vehicle is `stopped` or a `parking_candidate`. Each row includes the frame, time, vehicle ID, class, status, confidence, and bounding box.
 
 Statuses are:
 
