@@ -21,7 +21,9 @@ detect_parking = parking_detector.detect_parking
 def main():
     # Load the model once, then reuse it for every frame.
     model = YOLO(model_path)
-    capture = cv2.VideoCapture(str(video_source))
+    capture = cv2.VideoCapture(
+        video_source if isinstance(video_source, int) else str(video_source)
+    )
     fps = capture.get(cv2.CAP_PROP_FPS)
     frame_number = 0
 
