@@ -11,7 +11,7 @@ model_path = folder / "best.pt"
 video_source = folder / "video.mp4"  # Change to 0 for a webcam or a stream URL.
 output_path = folder / "output.txt"
 
-# Python module imports do not accept hyphens in file names, so load the requested filename directly.
+# Load the hyphenated file (Python imports cannot use hyphens).
 spec = importlib.util.spec_from_file_location("parking_detector", folder / "detect-parking.py")
 parking_detector = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(parking_detector)
@@ -19,6 +19,7 @@ detect_parking = parking_detector.detect_parking
 
 
 def main():
+    # Load the model once, then reuse it for every frame.
     model = YOLO(model_path)
     capture = cv2.VideoCapture(str(video_source))
     fps = capture.get(cv2.CAP_PROP_FPS)
@@ -34,6 +35,7 @@ def main():
         )
         writer.writeheader()
 
+        # Read and process one frame at a time.
         while capture.isOpened():
             success, frame = capture.read()
             if not success:
@@ -41,7 +43,8 @@ def main():
 
             frame_number += 1
             timestamp = (frame_number - 1) / fps if fps > 0 else None
-            for vehicle in detect_parking(model, frame, timestamp):
+            vehicles = detect_parking(model, frame, timestamp)
+            for vehicle in vehicles:
                 writer.writerow({"frame": frame_number, **vehicle})
 
     capture.release()

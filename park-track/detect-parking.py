@@ -3,12 +3,15 @@ import time
 
 
 def detect_parking(model, frame, timestamp=None):
-    """Detect and track vehicles in one frame; return one record per tracked vehicle."""
+    """Process one frame and return the vehicles found in it."""
     if not hasattr(model, "_parking_state"):
         model._parking_state = {"tracks": {}}
 
+    # Supply video time when available. Live frames use the clock.
     timestamp = time.monotonic() if timestamp is None else timestamp
     tracks = model._parking_state["tracks"]
+
+    # persist=True keeps vehicle IDs between calls.
     result = model.track(
         frame,
         persist=True,
@@ -39,6 +42,8 @@ def detect_parking(model, frame, timestamp=None):
         track["last_seen"] = timestamp
         positions = track["positions"]
         positions.append((timestamp, center_x, center_y))
+
+        # Keep only the latest second of positions to check movement.
         while positions and timestamp - positions[0][0] > 1.0:
             positions.popleft()
 
@@ -56,7 +61,13 @@ def detect_parking(model, frame, timestamp=None):
         else:
             track["stopped_since"] = None
 
-        stopped_for = timestamp - track["stopped_since"] if track["stopped_since"] is not None else 0
+        stopped_for = (
+            timestamp - track["stopped_since"]
+            if track["stopped_since"] is not None
+            else 0
+        )
+
+        # A stopped vehicle becomes a parking candidate after 30 seconds.
         if stopped_for >= 30.0:
             status = "parking_candidate"
         elif stopped_for >= 3.0:
@@ -71,10 +82,8 @@ def detect_parking(model, frame, timestamp=None):
                 "class": class_name,
                 "status": status,
                 "confidence": confidence,
-                "x1": x1,
-                "y1": y1,
-                "x2": x2,
-                "y2": y2,
+                "x1": x1, "y1": y1,
+                "x2": x2, "y2": y2,
             }
         )
 
