@@ -26,57 +26,31 @@ with open(folder / "output.txt", "w", newline="") as output:
         ["frame", "time_seconds", "track_id", "class", "status", "confidence", "x1", "y1", "x2", "y2"]
     )
 
-    next_track_id = 1
-    for frame, result in enumerate(model.predict(source=str(video_path), stream=True, verbose=False), 1):
+    results = model.track(
+        source=str(video_path),
+        stream=True,
+        persist=True,
+        tracker="bytetrack.yaml",
+        verbose=False,
+    )
+
+    for frame, result in enumerate(results, 1):
+        if result.boxes is None or result.boxes.id is None:
+            continue
+
         time_seconds = (frame - 1) / fps
-        detections = []
-        for box in result.boxes:
+        for box, track_id in zip(result.boxes, result.boxes.id.int().tolist()):
             class_id = int(box.cls[0])
             class_name = result.names[class_id]
             confidence = float(box.conf[0])
             x1, y1, x2, y2 = map(float, box.xyxy[0])
             center_x = (x1 + x2) / 2
             center_y = (y1 + y2) / 2
-            detections.append((box, class_name, confidence, x1, y1, x2, y2, center_x, center_y))
-
-        # Match each detection to the nearest recent track of the same class.
-        possible_matches = []
-        for detection_index, detection in enumerate(detections):
-            _, class_name, _, x1, y1, x2, y2, center_x, center_y = detection
-            for track_id, track in tracks.items():
-                age = time_seconds - track["last_seen"]
-                if track["class"] != class_name or age > 1.0:
-                    continue
-                old_x, old_y = track["center"]
-                distance = ((center_x - old_x) ** 2 + (center_y - old_y) ** 2) ** 0.5
-                box_size = max(x2 - x1, y2 - y1, track["box_size"])
-                max_distance = max(40.0, box_size * 0.8) + age * 100
-                if distance <= max_distance:
-                    possible_matches.append((distance / max_distance, detection_index, track_id))
-
-        assigned_detections = {}
-        used_tracks = set()
-        for _, detection_index, track_id in sorted(possible_matches):
-            if detection_index not in assigned_detections and track_id not in used_tracks:
-                assigned_detections[detection_index] = track_id
-                used_tracks.add(track_id)
-
-        for detection_index, detection in enumerate(detections):
-            _, class_name, confidence, x1, y1, x2, y2, center_x, center_y = detection
-            track_id = assigned_detections.get(detection_index)
-            if track_id is None:
-                track_id = next_track_id
-                next_track_id += 1
-                tracks[track_id] = {
-                    "class": class_name,
-                    "center": (center_x, center_y),
-                    "box_size": max(x2 - x1, y2 - y1),
-                    "positions": deque(),
-                    "stopped_since": None,
-                    "last_seen": time_seconds,
-                }
-
-            track = tracks[track_id]
+            track_id = int(track_id)
+            track = tracks.setdefault(
+                track_id,
+                {"positions": deque(), "stopped_since": None, "last_seen": time_seconds},
+            )
 
             # Start a fresh movement window after a long detection gap.
             if time_seconds - track["last_seen"] > stationary_window:
@@ -84,8 +58,6 @@ with open(folder / "output.txt", "w", newline="") as output:
                 track["stopped_since"] = None
 
             track["last_seen"] = time_seconds
-            track["center"] = (center_x, center_y)
-            track["box_size"] = max(x2 - x1, y2 - y1)
             positions = track["positions"]
             positions.append((time_seconds, center_x, center_y))
             while positions and time_seconds - positions[0][0] > stationary_window:
