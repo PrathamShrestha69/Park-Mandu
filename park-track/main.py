@@ -9,7 +9,7 @@ from ultralytics import YOLO
 folder = Path(__file__).parent
 model_path = folder / "best.pt"
 video_source = folder / "video.mp4"  # Change to 0 for a webcam or a stream URL.
-output_path = folder / "output.txt"
+output_path = folder / "output.csv"
 
 # Load the hyphenated file (Python imports cannot use hyphens).
 spec = importlib.util.spec_from_file_location("parking_detector", folder / "detect-parking.py")
