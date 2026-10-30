@@ -1,0 +1,268 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ==========================================================================
+   Park Mandu design tokens
+   Professional light dashboard: cool grey canvas, white bordered panels,
+   one violet accent, blue reserved for information. Flat colour only — no gradients.
+   ========================================================================== */
+:root {
+  --radius: 0.5rem;
+
+  --background: oklch(0.975 0.004 270);
+  --foreground: oklch(0.21 0.015 270);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.21 0.015 270);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.21 0.015 270);
+  --primary: oklch(0.53 0.235 290);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.965 0.006 270);
+  --secondary-foreground: oklch(0.25 0.015 270);
+  --muted: oklch(0.965 0.005 270);
+  --muted-foreground: oklch(0.52 0.015 270);
+  --accent: oklch(0.96 0.012 290);
+  --accent-foreground: oklch(0.25 0.015 270);
+  --destructive: oklch(0.577 0.215 27);
+  --border: oklch(0.925 0.006 270);
+  --input: oklch(0.89 0.008 270);
+  --ring: oklch(0.53 0.235 290);
+
+  /* Violet accent: primary actions, active navigation, selection. */
+  --brand: oklch(0.53 0.235 290);
+  --brand-foreground: oklch(1 0 0);
+  --brand-ink: oklch(0.45 0.22 290);
+  /* Blue: information, government parking, "normal" priority. */
+  --info: oklch(0.58 0.17 252);
+  --info-ink: oklch(0.47 0.15 255);
+  --success: oklch(0.62 0.15 155);
+  --success-ink: oklch(0.44 0.11 155);
+  --warning: oklch(0.79 0.15 75);
+  --warning-ink: oklch(0.49 0.11 60);
+
+  --chart-1: var(--info);
+  --chart-2: var(--success);
+  --chart-3: var(--destructive);
+  --chart-4: var(--warning);
+  --chart-5: oklch(0.82 0.008 270);
+
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.21 0.015 270);
+  --sidebar-primary: oklch(0.53 0.235 290);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.965 0.006 270);
+  --sidebar-accent-foreground: oklch(0.21 0.015 270);
+  --sidebar-border: oklch(0.925 0.006 270);
+  --sidebar-ring: oklch(0.53 0.235 290);
+}
+
+@theme inline {
+  --font-sans: var(--font-funnel-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-funnel-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand-ink: var(--brand-ink);
+  --color-info: var(--info);
+  --color-info-ink: var(--info-ink);
+  --color-success: var(--success);
+  --color-success-ink: var(--success-ink);
+  --color-warning: var(--warning);
+  --color-warning-ink: var(--warning-ink);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  --animate-blink: blink 1.6s ease-in-out infinite;
+  --animate-ring: ring 1.6s ease-out infinite;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+    font-feature-settings: "ss01", "cv11";
+  }
+  h1, h2, h3, h4 {
+    @apply font-heading tracking-tight text-balance;
+  }
+  button:not(:disabled), [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+/* Keep browser autofill from painting a blue block inside our rounded fields. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--foreground);
+  -webkit-box-shadow: 0 0 0 1000px var(--card) inset;
+  caret-color: var(--foreground);
+  transition: background-color 9999s ease-out 0s;
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Landowner form: hide the hourly price while "Free parking" is picked. */
+.pricing-form:has(input[name="pricing_mode"][value="free"]:checked) .price-field {
+  display: none;
+}
+
+/* ==========================================================================
+   Map — markers are plain DOM nodes that MapLibre positions itself.
+   ========================================================================== */
+/* MapLibre's own CSS sets .maplibregl-map { position: relative }, so pin the container explicitly. */
+.map-canvas,
+.map-canvas.maplibregl-map {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.map-marker {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.map-marker .pin {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 2px solid #fff;
+  border-radius: 9px;
+  color: #fff;
+  font: 700 13px/1 var(--font-heading);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.18), 0 4px 10px rgb(0 0 0 / 0.14);
+  transition: transform 150ms ease;
+}
+.map-marker:hover .pin,
+.map-marker:focus-visible .pin {
+  transform: translateY(-2px);
+}
+.map-marker .pin.marker-camera,
+.map-marker .pin.marker-incident {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+}
+.marker-green { background: var(--success); }
+.marker-blue { background: var(--info); }
+.marker-gray { background: oklch(0.6 0.01 265); }
+.marker-red { background: var(--destructive); }
+.marker-amber { background: var(--warning); color: oklch(0.25 0.05 60); }
+.marker-camera { background: oklch(0.32 0.02 270); }
+.marker-camera.is-offline { background: oklch(0.6 0.01 265); }
+.marker-incident { background: var(--destructive); animation: var(--animate-ring); }
+.marker-me {
+  width: 16px;
+  height: 16px;
+  border: 3px solid #fff;
+  border-radius: 999px;
+  background: var(--brand);
+  box-shadow: 0 0 0 6px color-mix(in oklch, var(--brand) 22%, transparent);
+}
+.maplibregl-popup-content {
+  border-radius: 12px !important;
+  padding: 12px 14px !important;
+  background: var(--popover) !important;
+  color: var(--popover-foreground) !important;
+  box-shadow: 0 0 0 1px var(--border), 0 12px 32px rgb(0 0 0 / 0.14) !important;
+  font-family: var(--font-sans);
+}
+.maplibregl-popup-tip { display: none; }
+.map-popup { min-width: 180px; }
+.map-popup strong { display: block; font-size: 13px; font-weight: 600; }
+.map-popup span { display: block; margin: 2px 0 8px; font-size: 12px; color: var(--muted-foreground); }
+.map-popup a { font-size: 12px; font-weight: 600; color: var(--primary); }
+.maplibregl-ctrl-group {
+  border-radius: 10px !important;
+  box-shadow: 0 0 0 1px var(--border), 0 2px 6px rgb(0 0 0 / 0.08) !important;
+  overflow: hidden;
+}
+.map-fallback {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-size: 13px;
+  text-align: center;
+}
+
+/* ==========================================================================
+   Motion
+   ========================================================================== */
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@keyframes ring {
+  0% { box-shadow: 0 0 0 0 color-mix(in oklch, var(--destructive) 55%, transparent); }
+  100% { box-shadow: 0 0 0 14px color-mix(in oklch, var(--destructive) 0%, transparent); }
+}
+@keyframes drive {
+  0% { transform: translateY(-30%); opacity: 0; }
+  15% { opacity: 1; }
+  100% { transform: translateY(140%); opacity: 0.9; }
+}
+.cctv-car { animation: drive 7s linear infinite; transform-box: fill-box; }
+.cctv-car.slow { animation-duration: 10s; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
