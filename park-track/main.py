@@ -8,7 +8,7 @@ from ultralytics import YOLO
 
 folder = Path(__file__).parent
 model_path = folder / "best.pt"
-video_source = folder / "video.mp4"  # Change to 0 for a webcam or a stream URL.
+video_source = folder / "video2.mp4"  # Change to 0 for a webcam or a stream URL.
 output_path = folder / "output.csv"
 
 # Load the hyphenated file (Python imports cannot use hyphens).
