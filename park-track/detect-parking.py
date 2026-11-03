@@ -2,7 +2,7 @@ from collections import deque
 import time
 
 
-def detect_parking(model, frame, timestamp=None):
+def detect_parking(model, frame, timestamp=None, device="cpu"):
     """Process one frame and return the vehicles found in it."""
     if not hasattr(model, "_parking_state"):
         model._parking_state = {"tracks": {}}
@@ -16,6 +16,7 @@ def detect_parking(model, frame, timestamp=None):
         frame,
         persist=True,
         tracker="bytetrack.yaml",
+        device=device,
         verbose=False,
     )[0]
 

@@ -8,6 +8,7 @@ import threading
 import websockets
 
 import cv2
+import torch
 from ultralytics import YOLO
 
 
@@ -91,6 +92,8 @@ detect_parking = parking_detector.detect_parking
 def main():
     # Load the model once, then reuse it for every frame.
     model = YOLO(model_path)
+    device = "0" if torch.cuda.is_available() else "cpu"
+    print(f"Running inference on {'CUDA GPU 0' if device == '0' else 'CPU'}")
     capture = cv2.VideoCapture(
         video_source if isinstance(video_source, int) else str(video_source)
     )
@@ -119,7 +122,7 @@ def main():
 
                 frame_number += 1
                 timestamp = (frame_number - 1) / FIXED_FPS
-                vehicles = detect_parking(model, frame, timestamp)
+                vehicles = detect_parking(model, frame, timestamp, device=device)
                 detection_socket.publish(frame_number, timestamp, vehicles)
                 for vehicle in vehicles:
                     if vehicle["status"] in {"stopped", "parking_candidate"}:
