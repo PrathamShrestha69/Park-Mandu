@@ -2,3 +2,4 @@ ultralytics
 opencv-python
 lap
 websockets
+requests

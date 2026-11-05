@@ -2,8 +2,22 @@ from collections import deque
 import time
 
 
-def detect_parking(model, frame, timestamp=None, device="cpu"):
-    """Process one frame and return the vehicles found in it."""
+def detect_parking(
+    model,
+    frame,
+    timestamp=None,
+    device="cpu",
+    stopped_after=3.0,
+    parking_after=30.0,
+    window=1.0,
+    move_threshold=15.0,
+):
+    """Process one frame and return the vehicles found in it.
+
+    stopped_after / parking_after: seconds of stillness before "stopped" / "parking_candidate".
+    window: seconds of recent positions used to judge movement. Raise it for slow, low-FPS sources.
+    move_threshold: pixels a box centre may drift inside the window and still count as still.
+    """
     if not hasattr(model, "_parking_state"):
         model._parking_state = {"tracks": {}}
 
@@ -36,7 +50,7 @@ def detect_parking(model, frame, timestamp=None, device="cpu"):
             {"positions": deque(), "stopped_since": None, "last_seen": timestamp},
         )
 
-        if timestamp - track["last_seen"] > 1.0:
+        if timestamp - track["last_seen"] > window:
             track["positions"].clear()
             track["stopped_since"] = None
 
@@ -44,21 +58,22 @@ def detect_parking(model, frame, timestamp=None, device="cpu"):
         positions = track["positions"]
         positions.append((timestamp, center_x, center_y))
 
-        # Keep only the latest second of positions to check movement.
-        while positions and timestamp - positions[0][0] > 1.0:
+        # Keep only the latest window of positions to check movement.
+        while positions and timestamp - positions[0][0] > window:
             positions.popleft()
 
-        stable = len(positions) > 1 and positions[-1][0] - positions[0][0] >= 0.8
+        stable = len(positions) > 1 and positions[-1][0] - positions[0][0] >= 0.8 * window
         if stable:
             start_x, start_y = positions[0][1:]
             moved = any(
-                ((x - start_x) ** 2 + (y - start_y) ** 2) ** 0.5 > 15.0
+                ((x - start_x) ** 2 + (y - start_y) ** 2) ** 0.5
+                > move_threshold
                 for _, x, y in positions
             )
             if moved:
                 track["stopped_since"] = None
             elif track["stopped_since"] is None:
-                track["stopped_since"] = timestamp - 1.0
+                track["stopped_since"] = timestamp - window
         else:
             track["stopped_since"] = None
 
@@ -68,10 +83,10 @@ def detect_parking(model, frame, timestamp=None, device="cpu"):
             else 0
         )
 
-        # A stopped vehicle becomes a parking candidate after 30 seconds.
-        if stopped_for >= 30.0:
+        # A stopped vehicle becomes a parking candidate after parking_after seconds (30 by default).
+        if stopped_for >= parking_after:
             status = "parking_candidate"
-        elif stopped_for >= 3.0:
+        elif stopped_for >= stopped_after:
             status = "stopped"
         else:
             status = "moving"
