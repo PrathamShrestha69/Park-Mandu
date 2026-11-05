@@ -59,6 +59,7 @@ def alert_dict(alert: Alert) -> dict[str, object]:
         "incident_id": alert.incident.id if alert.incident else None,
         "closed_at": alert.closed_at,
         "dismiss_reason": alert.dismiss_reason,
+        "has_snapshot": alert.snapshot_key is not None,
     }
 
 

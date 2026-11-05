@@ -62,6 +62,10 @@ class Settings(BaseSettings):
         return self.max_upload_mb * 1024 * 1024
 
 
+# Default position for cameras that register without coordinates (Ratna Park, Kathmandu).
+KATHMANDU_CENTER = (27.7056, 85.3206)
+
+
 @lru_cache
 def get_settings() -> Settings:
     return Settings()  # type: ignore[call-arg]

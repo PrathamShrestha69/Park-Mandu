@@ -41,6 +41,7 @@ class CameraOut(ORMModel):
     latitude: float
     longitude: float
     last_heartbeat_at: datetime | None
+    stream_url: str | None = None
     active_violations: int = 0
 
 
@@ -81,6 +82,7 @@ class AlertOut(ORMModel):
     incident_id: uuid.UUID | None
     closed_at: datetime | None
     dismiss_reason: str | None
+    has_snapshot: bool = False
 
 
 class AlertFilters(PageParams):
@@ -178,3 +180,25 @@ class DetectionIngest(BaseModel):
     confidence: float = Field(ge=0, le=1)
     direction: str | None = Field(None, max_length=40)
     detected_at: datetime | None = None
+    # Optional JPEG/PNG/WEBP crop of the vehicle, base64 encoded (max ~2 MB decoded).
+    snapshot_base64: str | None = Field(None, max_length=2_800_000)
+
+
+class CameraHeartbeat(BaseModel):
+    """Sent periodically by an AI detector. Registers the camera on first contact."""
+
+    camera_code: str = Field(min_length=3, max_length=16, pattern=r"^[A-Za-z0-9_-]+$")
+    stream_url: str | None = Field(None, max_length=255, pattern=r"^https?://")
+    name: str | None = Field(None, min_length=2, max_length=160)
+    road: str | None = Field(None, min_length=2, max_length=160)
+    area: str | None = Field(None, min_length=2, max_length=80)
+    zone: str | None = Field(None, min_length=1, max_length=40)
+    latitude: float | None = Field(None, ge=-90, le=90)
+    longitude: float | None = Field(None, ge=-180, le=180)
+
+
+class HeartbeatAccepted(BaseModel):
+    camera_id: uuid.UUID
+    camera_code: str
+    created: bool
+    status: CameraStatus

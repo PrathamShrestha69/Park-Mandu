@@ -4,7 +4,8 @@ import { Suspense } from "react";
 import Link from "next/link";
 
 import { AlertRow } from "@/components/police";
-import { Badge, CctvFeed, EmptyState, PageHead, SectionTitle, PageSkeleton, surface, surfaceLink } from "@/components/common";
+import { Badge, EmptyState, PageHead, SectionTitle, PageSkeleton, surface, surfaceLink } from "@/components/common";
+import { LiveCameraFeed } from "@/components/live-feed";
 import { Button } from "@/components/ui/button";
 import { apiGet } from "@/lib/api";
 import { CAMERA_STATUS, TRAFFIC, formatClock, formatDateTime, timeAgo } from "@/lib/format";
@@ -42,13 +43,18 @@ async function CameraDetailPageContent(props: PageProps<"/police/cameras/[id]">)
       />
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:items-start">
         <section className="flex flex-col gap-2">
-          <CctvFeed
+          <LiveCameraFeed
+            streamUrl={camera.stream_url}
             label={camera.code}
             stamp={`${camera.code} · ${formatClock(camera.last_heartbeat_at)}`}
             offline={!live}
             detection={latest ? `${latest.vehicle_type} · ${Math.round(latest.confidence * 100)}%` : undefined}
           />
-          <p className="text-xs text-muted-foreground">Video preview placeholder. Stream source: secure CCTV network ({camera.zone}).</p>
+          <p className="text-xs text-muted-foreground">
+            {camera.stream_url
+              ? "Live AI view: red boxes are vehicles flagged as parked."
+              : `Simulated camera, no AI detector connected (${camera.zone}).`}
+          </p>
         </section>
         <section className="flex flex-col gap-3">
           <div className={cn(surface, "p-5")}>

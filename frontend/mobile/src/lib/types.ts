@@ -213,6 +213,8 @@ export interface Camera {
   latitude: number;
   longitude: number;
   last_heartbeat_at: string | null;
+  /** Base URL of the AI detector's live preview (serves /stream.mjpg and /snapshot.jpg); null for simulated cameras. */
+  stream_url: string | null;
   active_violations: number;
 }
 
@@ -250,6 +252,8 @@ export interface Alert {
   incident_id: string | null;
   closed_at: string | null;
   dismiss_reason: string | null;
+  /** True when the AI detector attached a photo of the vehicle. */
+  has_snapshot: boolean;
 }
 
 export interface AlertCounts {

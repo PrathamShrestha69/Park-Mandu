@@ -1,4 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
+import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
 import { Cctv, CircleCheck, Navigation, ShieldCheck, TriangleAlert, X } from "lucide-react-native";
 import { useState } from "react";
@@ -6,7 +7,8 @@ import { Alert as RNAlert, Linking, Platform, StyleSheet, View } from "react-nat
 
 import { MapView } from "@/components/map-view";
 import { Badge, Button, Card, CctvPreview, ErrorView, Field, FormMessage, Loading, Row, Screen, Txt } from "@/components/ui";
-import { api, formErrors } from "@/lib/api";
+import { api, authHeaders, formErrors } from "@/lib/api";
+import { API_URL } from "@/lib/config";
 import { SEVERITY, formatClock, formatDateTime, percent, timeAgo } from "@/lib/format";
 import { invalidate, useApi } from "@/lib/queries";
 import { colors } from "@/lib/theme";
@@ -77,7 +79,21 @@ export default function AlertDetail() {
         </Txt>
       </View>
 
-      <CctvPreview label={`${a.camera_code} · ${formatClock(a.detected_at)}`} detection={`${a.plate_number ?? "Plate unreadable"} · ${percent(a.confidence)}`} height={210} />
+      {a.has_snapshot ? (
+        <View style={styles.snapshot}>
+          <Image
+            source={{ uri: `${API_URL}/files/alerts/${a.id}/snapshot`, headers: authHeaders() }}
+            style={{ width: "100%", height: 210 }}
+            contentFit="contain"
+            accessibilityLabel={`Vehicle captured by camera ${a.camera_code}`}
+          />
+          <Txt variant="small" color="rgba(255,255,255,0.8)" style={{ padding: 8 }}>
+            {a.camera_code} · {formatClock(a.detected_at)} · AI capture {percent(a.confidence)}
+          </Txt>
+        </View>
+      ) : (
+        <CctvPreview label={`${a.camera_code} · ${formatClock(a.detected_at)}`} detection={`${a.plate_number ?? "Plate unreadable"} · ${percent(a.confidence)}`} height={210} />
+      )}
 
       <Card style={{ marginTop: 12 }}>
         <View style={styles.pairs}>
@@ -146,6 +162,7 @@ export default function AlertDetail() {
 }
 
 const styles = StyleSheet.create({
+  snapshot: { borderRadius: 12, overflow: "hidden", backgroundColor: "#1a2230" },
   urgent: { backgroundColor: colors.red700, borderRadius: 12, padding: 12 },
   dangerIcon: { width: 60, height: 60, borderRadius: 12, backgroundColor: "rgba(244,89,91,0.16)", alignItems: "center", justifyContent: "center" },
   pairs: { flexDirection: "row", flexWrap: "wrap", rowGap: 16, justifyContent: "space-between" },

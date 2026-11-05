@@ -1,4 +1,6 @@
 import asyncio
+import base64
+import binascii
 import uuid
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, time, timedelta
@@ -9,7 +11,7 @@ from sqlalchemy import func, or_, select
 from sse_starlette.sse import EventSourceResponse
 
 from app.api.deps import DbSession, PoliceUser, client_ip
-from app.core.config import settings
+from app.core.config import KATHMANDU_CENTER, settings
 from app.core.errors import AppError, conflict, not_found
 from app.core.rate_limit import limiter
 from app.core.redis import ALERTS_CHANNEL, redis_client
@@ -31,9 +33,11 @@ from app.schemas.monitoring import (
     AlertOut,
     CameraCounts,
     CameraFilters,
+    CameraHeartbeat,
     CameraOut,
     DetectionIngest,
     DismissRequest,
+    HeartbeatAccepted,
     IncidentDetail,
     IncidentFilters,
     IncidentSummary,
@@ -43,7 +47,7 @@ from app.schemas.monitoring import (
     RoadCondition,
 )
 from app.schemas.user import DutyUpdate, UserOut
-from app.services import audit
+from app.services import audit, storage
 from app.services.monitoring import (
     SEVERITY_ORDER,
     alert_query,
@@ -427,6 +431,11 @@ async def resolve_incident(
 # --------------------------------------------------------------------------- ingestion
 
 
+def _require_ingest_key(x_api_key: str) -> None:
+    if not constant_time_equals(x_api_key, settings.ingest_api_key):
+        raise AppError(status.HTTP_401_UNAUTHORIZED, "invalid_api_key", "Invalid API key.")
+
+
 @router.post(
     "/ingest/detections",
     response_model=JobAccepted,
@@ -436,7 +445,54 @@ async def resolve_incident(
 )
 @limiter.limit("600/minute")
 async def ingest(request: Request, body: DetectionIngest, x_api_key: Annotated[str, Header()]) -> JobAccepted:
-    if not constant_time_equals(x_api_key, settings.ingest_api_key):
-        raise AppError(status.HTTP_401_UNAUTHORIZED, "invalid_api_key", "Invalid API key.")
-    job = ingest_detection.delay(body.model_dump(mode="json"))
+    _require_ingest_key(x_api_key)
+    payload = body.model_dump(mode="json", exclude={"snapshot_base64"})
+    if body.snapshot_base64:
+        try:
+            data = base64.b64decode(body.snapshot_base64, validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise AppError(status.HTTP_422_UNPROCESSABLE_ENTITY, "invalid_snapshot", "Snapshot is not valid base64.") from exc
+        payload["snapshot_key"] = await asyncio.to_thread(storage.save_snapshot, data)
+    job = ingest_detection.delay(payload)
     return JobAccepted(job_id=job.id)
+
+
+@router.post(
+    "/ingest/heartbeat",
+    response_model=HeartbeatAccepted,
+    tags=["ingest"],
+    summary="AI detectors report that a camera is live; unknown camera codes are registered (X-API-Key)",
+)
+@limiter.limit("120/minute")
+async def heartbeat(
+    request: Request, body: CameraHeartbeat, x_api_key: Annotated[str, Header()], db: DbSession
+) -> HeartbeatAccepted:
+    _require_ingest_key(x_api_key)
+    code = body.camera_code.upper()
+    camera = await db.scalar(select(Camera).where(Camera.code == code).with_for_update())
+    created = camera is None
+    if camera is None:
+        camera = Camera(
+            code=code,
+            name=body.name or f"Camera {code}",
+            road=body.road or "Unspecified road",
+            area=body.area or "Unassigned",
+            zone=body.zone or "Mobile",
+            latitude=body.latitude if body.latitude is not None else KATHMANDU_CENTER[0],
+            longitude=body.longitude if body.longitude is not None else KATHMANDU_CENTER[1],
+            status=CameraStatus.LIVE,
+        )
+        db.add(camera)
+    else:
+        for field in ("name", "road", "area", "zone", "latitude", "longitude"):
+            value = getattr(body, field)
+            if value is not None:
+                setattr(camera, field, value)
+        # Cameras under maintenance stay that way until an admin changes them.
+        if camera.status == CameraStatus.OFFLINE:
+            camera.status = CameraStatus.LIVE
+    if body.stream_url is not None:
+        camera.stream_url = body.stream_url
+    camera.last_heartbeat_at = datetime.now(UTC)
+    await db.commit()
+    return HeartbeatAccepted(camera_id=camera.id, camera_code=camera.code, created=created, status=camera.status)

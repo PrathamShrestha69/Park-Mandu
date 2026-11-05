@@ -5,10 +5,11 @@ from fastapi import APIRouter, Query
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 
-from app.api.deps import CurrentUser, DbSession
+from app.api.deps import CurrentUser, DbSession, PoliceUser
 from app.core.errors import not_found
 from app.models.application import ApplicationDocument, ParkingApplication
 from app.models.enums import UserRole
+from app.models.monitoring import Alert
 from app.services import storage
 
 router = APIRouter(prefix="/files", tags=["files"])
@@ -45,4 +46,20 @@ async def download_document(
         filename=doc.original_name if variant == "original" else None,
         content_disposition_type="inline",
         headers={"Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff"},
+    )
+
+
+@router.get("/alerts/{alert_id}/snapshot", summary="Vehicle image captured by the AI detector (police and admin)")
+async def alert_snapshot(alert_id: uuid.UUID, _: PoliceUser, db: DbSession) -> FileResponse:
+    key = await db.scalar(select(Alert.snapshot_key).where(Alert.id == alert_id))
+    if not key:
+        raise not_found("Snapshot")
+    path = storage.resolve(key)
+    if not path.exists():
+        raise not_found("Snapshot")
+    return FileResponse(
+        path,
+        media_type=storage.content_type_for(key),
+        content_disposition_type="inline",
+        headers={"Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff"},
     )

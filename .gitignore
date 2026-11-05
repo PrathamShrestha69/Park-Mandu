@@ -2,3 +2,7 @@ node_modules/
 .env
 .env.local
 .env*.local
+__pycache__/
+.venv/
+park-track/output.csv
+park-track/parked/

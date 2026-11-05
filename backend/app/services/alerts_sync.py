@@ -51,6 +51,7 @@ def create_alert(
     vehicle_color: str | None = None,
     direction: str | None = None,
     detected_at: datetime | None = None,
+    snapshot_key: str | None = None,
 ) -> Alert:
     # Small jitter so simultaneous detections on one camera do not stack on the same map pixel.
     alert = Alert(
@@ -63,6 +64,7 @@ def create_alert(
         confidence=round(confidence, 3),
         direction=direction,
         detected_at=detected_at or datetime.now(UTC),
+        snapshot_key=snapshot_key,
         latitude=camera.latitude + random.uniform(-0.0004, 0.0004),
         longitude=camera.longitude + random.uniform(-0.0004, 0.0004),
     )

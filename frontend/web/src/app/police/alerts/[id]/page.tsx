@@ -78,11 +78,26 @@ async function AlertDetailPageContent(props: PageProps<"/police/alerts/[id]">) {
               {alert.violation_label} · {alert.road}
             </p>
           </header>
-          <CctvFeed
-            label={alert.camera_code}
-            stamp={`${alert.camera_code} · ${formatClock(alert.detected_at)}`}
-            detection={`${alert.plate_number ?? "Plate unreadable"} · ${percent(alert.confidence)} match`}
-          />
+          {alert.has_snapshot ? (
+            <figure className="overflow-hidden rounded-xl border bg-[#1a2230]">
+              {/* eslint-disable-next-line @next/next/no-img-element -- authenticated proxy route, not a static asset */}
+              <img
+                src={`/api/files/alerts/${alert.id}/snapshot`}
+                alt={`Vehicle captured by camera ${alert.camera_code}`}
+                className="mx-auto max-h-96 w-full object-contain"
+              />
+              <figcaption className="flex justify-between bg-card px-3 py-2 font-mono text-xs text-muted-foreground">
+                <span>{alert.camera_code} · {formatClock(alert.detected_at)}</span>
+                <span>AI capture · {percent(alert.confidence)}</span>
+              </figcaption>
+            </figure>
+          ) : (
+            <CctvFeed
+              label={alert.camera_code}
+              stamp={`${alert.camera_code} · ${formatClock(alert.detected_at)}`}
+              detection={`${alert.plate_number ?? "Plate unreadable"} · ${percent(alert.confidence)} match`}
+            />
+          )}
           <MapView
             points={[{ id: alert.id, latitude: alert.latitude, longitude: alert.longitude, tone: "incident", kind: "incident", title: alert.violation_label, subtitle: alert.road }]}
             center={[alert.longitude, alert.latitude]}

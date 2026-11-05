@@ -2,9 +2,10 @@ import { router, useLocalSearchParams } from "expo-router";
 import { Clock, Gauge, MapPin, TriangleAlert } from "lucide-react-native";
 import { View } from "react-native";
 
+import { LiveFeed } from "@/components/live-feed";
 import { MapView } from "@/components/map-view";
 import { AlertRow } from "@/components/police";
-import { Badge, Button, Card, CctvPreview, Empty, ErrorView, Header, Loading, Row, Screen, SectionTitle, Txt } from "@/components/ui";
+import { Badge, Button, Card, Empty, ErrorView, Header, Loading, Row, Screen, SectionTitle, Txt } from "@/components/ui";
 import { CAMERA_STATUS, TRAFFIC, formatClock, formatDateTime, timeAgo } from "@/lib/format";
 import { useApi } from "@/lib/queries";
 import type { Alert, Camera, Page } from "@/lib/types";
@@ -25,9 +26,9 @@ export default function CameraDetail() {
   return (
     <Screen refreshing={camera.isRefetching} onRefresh={() => Promise.all([camera.refetch(), alerts.refetch()])}>
       <Header title={c.code} subtitle={live ? "Live camera feed" : CAMERA_STATUS[c.status].label} back right={<Badge tone={CAMERA_STATUS[c.status].tone} live={live}>{CAMERA_STATUS[c.status].label}</Badge>} />
-      <CctvPreview label={`${c.code} · ${formatClock(c.last_heartbeat_at)}`} offline={!live} detection={latest ? `${latest.vehicle_type} · ${Math.round(latest.confidence * 100)}%` : undefined} height={220} />
+      <LiveFeed streamUrl={c.stream_url} label={`${c.code} · ${formatClock(c.last_heartbeat_at)}`} offline={!live} detection={latest ? `${latest.vehicle_type} · ${Math.round(latest.confidence * 100)}%` : undefined} height={220} />
       <Txt variant="small" style={{ marginTop: 6 }}>
-        Video preview placeholder · secure CCTV network ({c.zone})
+        {c.stream_url ? "Live AI view · red boxes are vehicles flagged as parked" : `Simulated camera · no AI detector connected (${c.zone})`}
       </Txt>
 
       <Card style={{ marginTop: 12, gap: 16 }}>

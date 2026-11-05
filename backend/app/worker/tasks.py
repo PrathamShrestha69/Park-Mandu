@@ -6,7 +6,7 @@ from typing import Any
 
 import httpx
 from PIL import Image, ImageOps, UnidentifiedImageError
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, or_, select, update
 
 from app.core.config import settings
 from app.core.redis import sync_redis
@@ -145,18 +145,24 @@ def process_document(self: Any, document_id: str) -> str:
 @celery_app.task
 def ingest_detection(payload: dict[str, Any]) -> str | None:
     """Creates an alert from an external video-analytics detection, de-duplicating repeat sightings."""
-    if payload["confidence"] < MIN_CONFIDENCE:
+    snapshot_key = payload.get("snapshot_key")
+
+    def discard() -> None:
+        storage.delete(snapshot_key)
         return None
+
+    if payload["confidence"] < MIN_CONFIDENCE:
+        return discard()
     plate = payload.get("plate_number")
     if plate:
         dedupe_key = f"detections:dedupe:{payload['camera_code']}:{plate}:{payload['violation_type']}"
         if not sync_redis.set(dedupe_key, "1", nx=True, ex=600):
-            return None
+            return discard()
     with SyncSessionLocal() as session:
-        camera = session.scalar(select(Camera).where(Camera.code == payload["camera_code"]))
+        camera = session.scalar(select(Camera).where(Camera.code == payload["camera_code"].upper()))
         if camera is None:
             log.warning("Detection for unknown camera %s", payload["camera_code"])
-            return None
+            return discard()
         detected_at = payload.get("detected_at")
         alert = create_alert(
             session,
@@ -168,6 +174,7 @@ def ingest_detection(payload: dict[str, Any]) -> str | None:
             confidence=payload["confidence"],
             direction=payload.get("direction"),
             detected_at=datetime.fromisoformat(detected_at) if detected_at else None,
+            snapshot_key=snapshot_key,
         )
         session.commit()
         publish_alert(alert, camera)
@@ -176,10 +183,21 @@ def ingest_detection(payload: dict[str, Any]) -> str | None:
 
 @celery_app.task
 def simulate_camera_telemetry() -> int:
-    """Demo stand-in for camera heartbeats and traffic analytics."""
-    if not settings.simulate_detections:
-        return 0
+    """Demo stand-in for camera heartbeats and traffic analytics. Always marks silent cameras offline."""
     now = datetime.now(UTC)
+    if not settings.simulate_detections:
+        # Real detectors heartbeat via POST /ingest/heartbeat; only the offline sweep runs.
+        with SyncSessionLocal() as session:
+            session.execute(
+                update(Camera)
+                .where(
+                    Camera.status == CameraStatus.LIVE,
+                    or_(Camera.last_heartbeat_at.is_(None), Camera.last_heartbeat_at < now - timedelta(minutes=2)),
+                )
+                .values(status=CameraStatus.OFFLINE)
+            )
+            session.commit()
+        return 0
     with SyncSessionLocal() as session:
         cameras = session.scalars(select(Camera).where(Camera.status == CameraStatus.LIVE)).all()
         for camera in cameras:

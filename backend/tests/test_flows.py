@@ -1,5 +1,6 @@
 """End-to-end API flows against a running stack (docker compose up). Run: docker compose exec api pytest -q"""
 
+import base64
 import io
 import os
 import time
@@ -308,3 +309,40 @@ def test_admin_stats_and_map(admin: httpx.Client) -> None:
     assert {m["kind"] for m in layers["markers"]} == {"camera"}
     users = admin.get("/admin/users", params={"role": "police"}).json()
     assert users["total"] == 3
+
+
+def test_ai_detector_heartbeat_registers_camera_and_snapshot_is_served(police: httpx.Client) -> None:
+    key = {"X-API-Key": os.environ["INGEST_API_KEY"]}
+    code = f"PH-{uuid.uuid4().hex[:6].upper()}"
+    beat = {
+        "camera_code": code,
+        "name": "Phone camera test",
+        "latitude": 27.7,
+        "longitude": 85.31,
+        "stream_url": "http://192.168.1.50:8090",
+    }
+    assert httpx.post(f"{BASE}/ingest/heartbeat", json=beat, headers={"X-API-Key": "wrong"}).status_code == 401
+    first = httpx.post(f"{BASE}/ingest/heartbeat", json=beat, headers=key)
+    assert first.status_code == 200 and first.json()["created"] is True
+    again = httpx.post(f"{BASE}/ingest/heartbeat", json={"camera_code": code}, headers=key).json()
+    assert again["created"] is False and again["camera_id"] == first.json()["camera_id"]
+    camera = police.get(f"/cameras/{again['camera_id']}").json()
+    assert camera["status"] == "live" and camera["stream_url"] == beat["stream_url"]
+
+    # Smallest valid JPEG header is enough for content sniffing.
+    jpeg = bytes.fromhex("ffd8ffe000104a46494600010100000100010000ffd9")
+    plate = f"Ba 1 Pa {uuid.uuid4().int % 9000 + 1000}"
+    detection = {
+        "camera_code": code,
+        "violation_type": "no_parking_zone",
+        "vehicle_type": "car",
+        "confidence": 0.9,
+        "plate_number": plate,
+        "snapshot_base64": base64.b64encode(jpeg).decode(),
+    }
+    assert httpx.post(f"{BASE}/ingest/detections", json=detection, headers=key).status_code == 202
+    time.sleep(2)
+    alert = police.get("/alerts", params={"q": plate}).json()["items"][0]
+    assert alert["has_snapshot"] is True
+    image = police.get(f"/files/alerts/{alert['id']}/snapshot")
+    assert image.status_code == 200 and image.headers["content-type"] == "image/jpeg"

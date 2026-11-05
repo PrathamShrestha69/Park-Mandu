@@ -86,3 +86,30 @@ def delete(*keys: str | None) -> None:
     for key in keys:
         if key:
             resolve(key).unlink(missing_ok=True)
+
+
+MAX_SNAPSHOT_BYTES = 2 * 1024 * 1024
+
+
+def save_snapshot(data: bytes, folder: str = "alerts") -> str:
+    """Stores a detector-supplied vehicle image after checking its real type from the bytes. Returns the key."""
+    if not data or len(data) > MAX_SNAPSHOT_BYTES:
+        raise AppError(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "snapshot_too_large", "Snapshot must be 2 MB or smaller.")
+    kind = filetype.guess(data[:2048])
+    content_type = kind.mime if kind else None
+    if content_type not in PHOTO_ONLY:
+        raise AppError(
+            status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, "unsupported_file", "Snapshot must be a JPG, PNG or WEBP image."
+        )
+    key = f"{folder}/{uuid.uuid4().hex}.{ALLOWED_TYPES[content_type]}"
+    path = resolve(key)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(data)
+    return key
+
+
+def content_type_for(key: str) -> str:
+    ext = key.rsplit(".", 1)[-1].lower()
+    return {"jpg": "image/jpeg", "png": "image/png", "webp": "image/webp", "pdf": "application/pdf"}.get(
+        ext, "application/octet-stream"
+    )

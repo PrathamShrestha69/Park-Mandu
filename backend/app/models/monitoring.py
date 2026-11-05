@@ -28,6 +28,7 @@ class Camera(UUIDPrimaryKey, Timestamps, GeoPoint, Base):
     status: Mapped[CameraStatus] = mapped_column(str_enum(CameraStatus), default=CameraStatus.LIVE, index=True)
     traffic_level: Mapped[TrafficLevel] = mapped_column(str_enum(TrafficLevel), default=TrafficLevel.CLEAR)
     avg_speed_kmh: Mapped[int] = mapped_column(Integer, default=30)
+    # Base URL of the AI service's live preview for this camera (it serves /stream.mjpg and /snapshot.jpg).
     stream_url: Mapped[str | None] = mapped_column(String(255))
     last_heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     installed_on: Mapped[date | None] = mapped_column(Date)
@@ -56,6 +57,8 @@ class Alert(UUIDPrimaryKey, Timestamps, GeoPoint, Base):
     )
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     dismiss_reason: Mapped[str | None] = mapped_column(String(255))
+    # Storage key of the vehicle crop sent by the AI detector (see services/storage.py).
+    snapshot_key: Mapped[str | None] = mapped_column(String(255))
 
     camera: Mapped[Camera] = relationship(lazy="raise")
     assigned_officer: Mapped[User | None] = relationship(lazy="raise")
