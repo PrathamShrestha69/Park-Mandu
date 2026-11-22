@@ -18,7 +18,7 @@ default PyTorch wheel is CPU-only.
 ## Run offline (no backend)
 
 ```bash
-python main.py                                  # video2.mp4, same behaviour as before
+python main.py                                  # ../road parking video.mp4, same behaviour as before
 python main.py --source video.mp4 --show        # another file, with a preview window
 ```
 
@@ -37,7 +37,7 @@ Without `--camera-code` nothing is sent anywhere; results go to `output.csv`, `p
 
 ```bash
 set INGEST_API_KEY=<value from backend/.env>     # PowerShell: $env:INGEST_API_KEY="..."
-python main.py --source video2.mp4 --realtime --camera-code DEMO-01 ^
+python main.py --source "../road parking video.mp4" --realtime --camera-code DEMO-01 ^
   --name "Demo junction" --road "Kantipath" --area "Kathmandu" --lat 27.7056 --lng 85.3206
 ```
 

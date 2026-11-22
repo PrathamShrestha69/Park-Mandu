@@ -27,7 +27,7 @@ the lot (each track once) and the backend turns that into the facility's occupan
 raised in parking mode.
 
 Run from the project folder:
-    vehicle_detection\\.venv\\Scripts\\python camera-bridge\\bridge.py --source video2.mp4 --camera-code CAM-014
+    vehicle_detection\\.venv\\Scripts\\python camera-bridge\\bridge.py --source "road parking video.mp4" --camera-code CAM-021
     vehicle_detection\\.venv\\Scripts\\python camera-bridge\\bridge.py --source http://<PHONE-IP>:8080/video --camera-code PHONE-01
 """
 

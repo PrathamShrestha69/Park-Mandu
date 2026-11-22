@@ -87,11 +87,11 @@ cd park-track
 $env:INGEST_API_KEY = ((Get-Content ..\backend\.env | Select-String '^INGEST_API_KEY=') -split '=',2)[1]
 .\.venv\Scripts\python main.py --source http://<PHONE-IP>:8080/video --camera-code PHONE-01 --name "My phone" --lat 27.7056 --lng 85.3206
 ```
-To try it without a camera, use the sample video and attach the AI to the existing camera `CAM-014`
+To try it without a camera, use the sample video and attach the AI to the demo camera `CAM-021`
 (one line):
 
 ```powershell
-.\.venv\Scripts\python main.py --source video2.mp4 --realtime --park-seconds 10 --camera-code CAM-014 --road-quad "265,475;690,593;890,387;575,345" --road-width-m 7 --road-length-m 12
+.\.venv\Scripts\python main.py --source "..oad parking video.mp4" --realtime --park-seconds 10 --camera-code CAM-021 --road-quad "265,475;690,593;890,387;575,345" --road-width-m 7 --road-length-m 12
 ```
 
 The three `--road-…` options calibrate speed for that video (approximate: they assume 3.5 m lanes and

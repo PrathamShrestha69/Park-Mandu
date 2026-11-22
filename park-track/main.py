@@ -57,7 +57,7 @@ def parse_args():
     p = argparse.ArgumentParser(description="Detect parked vehicles in a video source and report them to Park Mandu.")
     p.add_argument(
         "--source",
-        default=env("PARKTRACK_SOURCE", str(folder / "video2.mp4")),
+        default=env("PARKTRACK_SOURCE", str(folder.parent / "road parking video.mp4")),
         help="Video file, webcam index (0), RTSP URL (CCTV) or HTTP stream URL (phone camera app).",
     )
     p.add_argument("--model", default=str(folder / "best.pt"))
