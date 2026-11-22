@@ -37,7 +37,7 @@ def _camera(**overrides: object) -> SimpleNamespace:
 def test_traffic_status_maps_existing_levels() -> None:
     assert traffic_status(_camera(traffic_level=TrafficLevel.CLEAR), NOW) == TrafficStatus.NORMAL_FLOW
     assert traffic_status(_camera(traffic_level=TrafficLevel.MODERATE), NOW) == TrafficStatus.NORMAL_FLOW
-    assert traffic_status(_camera(traffic_level=TrafficLevel.SLOW), NOW) == TrafficStatus.TRAFFIC_JAM
+    assert traffic_status(_camera(traffic_level=TrafficLevel.SLOW), NOW) == TrafficStatus.NORMAL_FLOW  # slow is not a jam
     assert traffic_status(_camera(traffic_level=TrafficLevel.CONGESTED), NOW) == TrafficStatus.TRAFFIC_JAM
 
 
@@ -89,15 +89,17 @@ def test_parked_in_traffic_jam_is_suppressed() -> None:
     assert decision == EnforcementDecision.SUPPRESSED_TRAFFIC_JAM
 
 
-def test_parked_with_unknown_or_old_traffic_is_suppressed() -> None:
-    assert _decide(_vehicle(), _camera(traffic_updated_at=None)) == EnforcementDecision.SUPPRESSED_TRAFFIC_UNKNOWN
+def test_parked_with_unknown_or_old_traffic_is_alerted() -> None:
+    # Only a measured jam holds an alert back; traffic that is unknown or old does not.
+    assert _decide(_vehicle(), _camera(traffic_updated_at=None)) == EnforcementDecision.ALERTED
     old = _camera(traffic_updated_at=NOW - timedelta(minutes=5))
-    assert _decide(_vehicle(), old) == EnforcementDecision.SUPPRESSED_TRAFFIC_UNKNOWN
+    assert _decide(_vehicle(), old) == EnforcementDecision.ALERTED
+    assert _decide(_vehicle(), _camera(traffic_level=TrafficLevel.SLOW)) == EnforcementDecision.ALERTED
 
 
 def test_jam_then_normal_flow_alerts_on_reassessment() -> None:
     vehicle = _vehicle()
-    assert _decide(vehicle, _camera(traffic_level=TrafficLevel.SLOW)) == EnforcementDecision.SUPPRESSED_TRAFFIC_JAM
+    assert _decide(vehicle, _camera(traffic_level=TrafficLevel.CONGESTED)) == EnforcementDecision.SUPPRESSED_TRAFFIC_JAM
     assert _decide(vehicle, _camera(traffic_level=TrafficLevel.MODERATE)) == EnforcementDecision.ALERTED
 
 

@@ -120,21 +120,21 @@ def test_genuinely_parked_vehicle_with_traffic_passing() -> None:
     assert [c.state for c in parked] == [PARKED]
     assert parked[0].reason == "traffic_passing"
     assert parked[0].passers >= 2
-    # Not before the minimum standing time plus confirmation.
-    first = min(t for t, s in states.items() if s[1] == PARKED)
-    assert first >= ParkingRules().min_dwell_seconds
+    # Reported once it has stood the minimum time (30 s), not before and with no extra wait after.
+    assert ParkingRules().min_dwell_seconds <= parked[0].stationary_seconds < ParkingRules().min_dwell_seconds + 1
     # The passing cars themselves are never parked.
     assert all(c.track_id == 1 for c in changes)
 
 
-def test_thirty_seconds_still_alone_is_not_enough() -> None:
-    # Standing 45 s with nothing around: could be a red light, so it is not parked yet.
-    _, changes, states = run({1: standing(0.5, 0.5)}, 45)
+def test_parked_alone_after_thirty_seconds() -> None:
+    # Under 30 s standing with nothing around is not parked yet.
+    _, changes, _ = run({1: standing(0.5, 0.5)}, 25)
     assert changes == []
-    # Standing alone well past the isolated threshold is parking.
-    _, changes, _ = run({1: standing(0.5, 0.5)}, 150)
+    # At 30 s standing alone it is parked, with no extra wait on top.
+    _, changes, states = run({1: standing(0.5, 0.5)}, 40)
     assert [c.state for c in changes] == [PARKED]
     assert changes[0].reason == "standing_alone"
+    assert min(t for t, s in states.items() if s[1] == PARKED) <= 31
 
 
 def test_long_jam_alone_never_becomes_parked() -> None:

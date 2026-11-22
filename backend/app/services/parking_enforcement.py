@@ -6,7 +6,7 @@ The bridge reports PARKED / NOT_PARKED per vehicle. This module decides what hap
     NOT_PARKED   any           no alert
     PARKED       NORMAL_FLOW   check the illegal-parking rules, alert if they all hold
     PARKED       TRAFFIC_JAM   hold the alert back (the vehicle may just be queued)
-    PARKED       unknown/old   hold the alert back
+    PARKED       unknown/old   check the illegal-parking rules, alert if they all hold
 
 Traffic comes from the camera's existing traffic level (see services/traffic.py); nothing here measures
 traffic. Held-back vehicles are reassessed whenever traffic returns to normal and periodically while
@@ -74,10 +74,9 @@ def decide(vehicle: ParkedVehicle, camera: Camera, now: datetime) -> tuple[Enfor
         return EnforcementDecision.LOW_CONFIDENCE, traffic
     if camera.status == CameraStatus.MAINTENANCE:
         return EnforcementDecision.CAMERA_UNAVAILABLE, traffic
+    # Only a measured jam holds the alert back; unknown or old traffic does not.
     if traffic == TrafficStatus.TRAFFIC_JAM:
         return EnforcementDecision.SUPPRESSED_TRAFFIC_JAM, traffic
-    if traffic == TrafficStatus.UNKNOWN:
-        return EnforcementDecision.SUPPRESSED_TRAFFIC_UNKNOWN, traffic
     return EnforcementDecision.ALERTED, traffic
 
 

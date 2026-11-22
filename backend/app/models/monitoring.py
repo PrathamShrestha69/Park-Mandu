@@ -34,7 +34,7 @@ class Camera(UUIDPrimaryKey, Timestamps, GeoPoint, Base):
     traffic_level: Mapped[TrafficLevel] = mapped_column(str_enum(TrafficLevel), default=TrafficLevel.CLEAR)
     avg_speed_kmh: Mapped[int] = mapped_column(Integer, default=30)
     # When traffic_level was last measured (detector speed or the demo simulator). NULL = never measured.
-    # Illegal-parking alerts treat a missing or old measurement as "traffic unknown" and hold back.
+    # A missing or old measurement is "traffic unknown"; only a measured jam holds parking alerts back.
     traffic_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # Base URL of the AI service's live preview for this camera (it serves /stream.mjpg and /snapshot.jpg).
     stream_url: Mapped[str | None] = mapped_column(String(255))

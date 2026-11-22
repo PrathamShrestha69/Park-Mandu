@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.realtime import emit_sync, role_room, user_room
+from app.core.redis import sync_redis
 from app.models.enums import (
     OPEN_ALERT_STATUSES,
     AlertStatus,
@@ -41,6 +42,10 @@ RESPONSE_TIMEOUT = timedelta(minutes=3)
 # Alerts older than this are no longer worth sending anybody to.
 RETRY_WINDOW = timedelta(minutes=30)
 NO_OFFICER_MESSAGE = "No traffic officer is available within {km:g} km of this incident."
+
+
+def no_officer_mute_key(camera_id: uuid.UUID) -> str:
+    return f"dispatch:none:muted:{camera_id}"
 
 
 @dataclass(frozen=True)
@@ -171,7 +176,11 @@ def dispatch_alert(session: Session, alert_id: uuid.UUID) -> DispatchStatus | No
         dispatch.distance_m = None
         dispatch.notified_at = dispatch.notified_at or datetime.now(UTC)
         session.commit()
-        if first_time:
+        # After one "nobody within 1 km" notice for a camera, further ones for it stay muted for a while,
+        # so the control room is not told again for every new alert or retry from the same spot.
+        if first_time and sync_redis.set(
+            no_officer_mute_key(camera.id), "1", nx=True, ex=settings.no_officer_notice_mute_seconds
+        ):
             message = NO_OFFICER_MESSAGE.format(km=settings.dispatch_radius_m / 1000)
             for role in (UserRole.POLICE, UserRole.ADMIN):
                 emit_sync("dispatch:none", {**payload, "message": message}, role_room(role.value))

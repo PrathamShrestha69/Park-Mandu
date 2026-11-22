@@ -44,6 +44,8 @@ class Settings(BaseSettings):
     # Nearest-officer dispatch: only on-duty officers who reported a position this recently are eligible.
     dispatch_radius_m: int = 1000
     officer_location_ttl_seconds: int = 600
+    # After a "no officer within the radius" notice for a camera, more notices for it are muted this long.
+    no_officer_notice_mute_seconds: int = 900
     # A parking facility reads "partially available" once no more than this share of it is free.
     parking_partial_threshold: float = 0.5
     # A camera's parked-vehicle count must hold for this many consecutive reports before availability changes.
@@ -52,8 +54,8 @@ class Settings(BaseSettings):
     # ---- Traffic-aware illegal-parking alerts (Parking Availability Bridge)
     # A traffic measurement older than this is "unknown" and parking alerts on that camera are held back.
     traffic_status_max_age_seconds: int = 120
-    # Traffic levels that count as a jam: parked vehicles there are not alerted (vehicles may just be queued).
-    traffic_jam_levels: Annotated[list[str], NoDecode] = ["slow", "congested"]
+    # Traffic levels that count as a jam: the only condition that holds a parking alert back.
+    traffic_jam_levels: Annotated[list[str], NoDecode] = ["congested"]
     # A parked vehicle the bridge has not mentioned for this long is no longer observed (bridge stopped).
     parking_status_stale_seconds: int = 60
 
