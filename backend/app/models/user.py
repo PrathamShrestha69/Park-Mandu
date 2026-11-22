@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, Timestamps, UUIDPrimaryKey, str_enum
@@ -22,6 +22,10 @@ class User(UUIDPrimaryKey, Timestamps, Base):
     badge_number: Mapped[str | None] = mapped_column(String(20), unique=True)
     unit: Mapped[str | None] = mapped_column(String(120))
     on_duty: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Last position an on-duty officer's device reported; used to find the nearest officer to an incident.
+    latitude: Mapped[float | None] = mapped_column(Float)
+    longitude: Mapped[float | None] = mapped_column(Float)
+    location_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     sessions: Mapped[list["AuthSession"]] = relationship(

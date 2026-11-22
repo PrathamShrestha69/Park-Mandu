@@ -9,13 +9,13 @@ import { Alert, Pressable, StyleSheet, Switch, TextInput, View } from "react-nat
 
 import { MapView } from "@/components/map-view";
 import { DocumentList, OwnerSummary, PropertySummary, WIZARD_STEPS, documentUrl } from "@/components/parking";
-import { Button, Callout, Card, Chips, ErrorView, Field, FormMessage, Header, Loading, Row, Screen, Txt } from "@/components/ui";
+import { Button, Callout, Card, Chips, ErrorView, Field, FormMessage, Header, Loading, MultiChips, Row, Screen, Txt } from "@/components/ui";
 import { api, authHeaders, formErrors } from "@/lib/api";
-import { DAYS_LABEL, DOCUMENT_LABEL, PARKING_TYPE_LABEL, formatBytes } from "@/lib/format";
-import { useMyLocation } from "@/lib/location";
+import { DAYS_LABEL, DOCUMENT_LABEL, PARKING_TYPE_LABEL, VEHICLE_TYPES, VEHICLE_TYPE_LABEL, formatBytes } from "@/lib/format";
+import { currentLocationStatus, locationHelp, useMyLocation } from "@/lib/location";
 import { invalidate, queryClient, useApi } from "@/lib/queries";
 import { colors, fonts } from "@/lib/theme";
-import type { ApplicationDetail, AvailableDays, DocumentKind, ParkingType, PricingMode } from "@/lib/types";
+import type { ApplicationDetail, AvailableDays, DocumentKind, ParkingType, PricingMode, VehicleType } from "@/lib/types";
 
 type Step = (typeof WIZARD_STEPS)[number];
 const TITLES: Record<Step, [string, string]> = {
@@ -140,8 +140,10 @@ function LocationStep({ app }: { app: ApplicationDetail }) {
         variant="secondary"
         icon={<LocateFixed size={18} color={colors.blue700} />}
         onPress={async () => {
-          const c = await locate(true);
-          if (c) await lookup(c);
+          const c = await locate();
+          if (c) return lookup(c);
+          const help = locationHelp(currentLocationStatus());
+          if (help) Alert.alert(help.title, `${help.body} You can also tap the map to place the pin.`);
         }}
       />
       <Card>
@@ -173,6 +175,7 @@ function PropertyStep({ app }: { app: ApplicationDetail }) {
     price_per_hour: app.price_per_hour ? String(Number(app.price_per_hour)) : "",
   });
   const [type, setType] = useState<ParkingType>(app.parking_type ?? "open_air");
+  const [vehicles, setVehicles] = useState<VehicleType[]>(app.vehicle_types.length ? app.vehicle_types : ["car", "bike"]);
   const [days, setDays] = useState<AvailableDays>(app.available_days ?? "every_day");
   const [pricing, setPricing] = useState<PricingMode>(app.pricing_mode ?? "hourly");
   const save = useSave(app, `/application/${app.id}/edit/owner`);
@@ -192,6 +195,9 @@ function PropertyStep({ app }: { app: ApplicationDetail }) {
       </Row>
       <Txt variant="label">Parking type</Txt>
       <Chips<ParkingType> value={type} onChange={setType} options={Object.entries(PARKING_TYPE_LABEL).map(([value, label]) => ({ value: value as ParkingType, label }))} />
+      <Txt variant="label">Vehicle types accepted</Txt>
+      <MultiChips<VehicleType> value={vehicles} onChange={setVehicles} options={VEHICLE_TYPES.map((value) => ({ value, label: VEHICLE_TYPE_LABEL[value] }))} />
+      {error?.fields.vehicle_types && <FormMessage message={error.fields.vehicle_types} />}
       <Row style={{ alignItems: "flex-start" }}>
         <View style={{ flex: 1 }}>
           <Field label="Opens at (HH:MM)" value={form.opens_at} onChangeText={set("opens_at")} keyboardType="numbers-and-punctuation" error={error?.fields.opens_at} />
@@ -219,6 +225,7 @@ function PropertyStep({ app }: { app: ApplicationDetail }) {
               land_size_sqm: form.land_size_sqm ? Number(form.land_size_sqm) : null,
               capacity: form.capacity ? Number(form.capacity) : null,
               parking_type: type,
+              vehicle_types: vehicles,
               opens_at: form.opens_at,
               closes_at: form.closes_at,
               available_days: days,

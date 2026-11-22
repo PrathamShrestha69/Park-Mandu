@@ -1,43 +1,47 @@
 import { router } from "expo-router";
-import { ArrowRight, Bell, FileCheck2, LocateFixed, Search } from "lucide-react-native";
+import { ArrowRight, Bell, FileCheck2, LocateFixed, Map, Search } from "lucide-react-native";
 import { useState } from "react";
 import { Pressable, StyleSheet, TextInput, View } from "react-native";
 
-import { MapView } from "@/components/map-view";
 import { ParkingCard } from "@/components/parking";
-import { Button, Card, Dot, Empty, Header, IconButton, Row, Screen, Stack, Txt } from "@/components/ui";
+import { Button, Callout, Empty, ErrorView, Header, IconButton, Row, Screen, SectionTitle, Stack, Txt } from "@/components/ui";
 import { useViewer } from "@/lib/auth";
 import { greeting } from "@/lib/format";
-import { useMyLocation } from "@/lib/location";
+import { locationHelp, useMyLocation } from "@/lib/location";
 import { useApi } from "@/lib/queries";
-import { colors, fonts, radius, shadow, space } from "@/lib/theme";
-import type { MapMarker, Page, ParkingSummary } from "@/lib/types";
+import { colors, fonts, radius, space } from "@/lib/theme";
+import type { Page, ParkingSummary } from "@/lib/types";
 
-const CITY_CENTRE = { latitude: 27.7048, longitude: 85.3117 };
-
+/** Start screen for drivers: the nearest parking that can be used right now, one tap from directions. */
 export default function Home() {
   const viewer = useViewer();
-  const { coords, busy, locate } = useMyLocation();
-  const origin = coords ?? CITY_CENTRE;
+  const { coords, status, busy, locate } = useMyLocation();
   const [q, setQ] = useState("");
 
   const unread = useApi<{ unread: number }>("/notifications/unread-count");
-  const markers = useApi<MapMarker[]>("/parkings/map");
-  const nearby = useApi<Page<ParkingSummary>>("/parkings", {
-    lat: origin.latitude,
-    lng: origin.longitude,
-    radius_m: 10_000,
-    available_only: true,
-    open_now: true,
-    sort: "distance",
-    size: 3,
-  });
+  // With a position: nearest usable parking first. Without one nothing is assumed about where the
+  // user is, so the list is simply what is open with free spaces across the valley.
+  const nearby = useApi<Page<ParkingSummary>>(
+    "/parkings",
+    {
+      lat: coords?.latitude,
+      lng: coords?.longitude,
+      radius_m: coords ? 20_000 : undefined,
+      available_only: true,
+      open_now: true,
+      sort: "recommended",
+      size: 4,
+    },
+    { enabled: status !== "checking" || !!coords },
+  );
   const locationQuery = coords ? `?lat=${coords.latitude}&lng=${coords.longitude}` : "";
+  const help = locationHelp(status);
+  const waiting = status === "checking" && !coords;
 
-  const refresh = () => Promise.all([markers.refetch(), nearby.refetch(), unread.refetch()]);
+  const search = () => router.push({ pathname: "/explore", params: q.trim() ? { q: q.trim() } : {} });
 
   return (
-    <Screen refreshing={markers.isRefetching || nearby.isRefetching} onRefresh={refresh}>
+    <Screen refreshing={nearby.isRefetching} onRefresh={() => Promise.all([nearby.refetch(), unread.refetch(), coords ? locate() : Promise.resolve(null)])}>
       <Header
         eyebrow={greeting()}
         title={viewer.full_name}
@@ -48,90 +52,79 @@ export default function Home() {
         }
       />
 
-      <View>
-        <MapView
-          height={360}
-          me={coords}
-          points={(markers.data ?? []).map((m) => ({ id: m.id, latitude: m.latitude, longitude: m.longitude, tone: m.tone, kind: m.kind, title: m.name, subtitle: m.subtitle }))}
-          onSelect={(point) => point.kind === "parking" && router.push(`/parking/${point.id}${locationQuery}` as never)}
+      <View style={styles.search}>
+        <Search size={18} color={colors.slate500} />
+        <TextInput
+          value={q}
+          onChangeText={setQ}
+          placeholder="Where do you want to park?"
+          placeholderTextColor={colors.slate500}
+          selectionColor={colors.violet}
+          returnKeyType="search"
+          onSubmitEditing={search}
+          style={styles.searchInput}
+          accessibilityLabel="Search parking by name, street or area"
         />
-        <View style={styles.searchOverlay}>
-          <Search size={18} color={colors.slate500} />
-          <TextInput
-            value={q}
-            onChangeText={setQ}
-            placeholder="Search parking or location"
-            placeholderTextColor={colors.slate500}
-            selectionColor={colors.blue600}
-            returnKeyType="search"
-            onSubmitEditing={() => router.push({ pathname: "/explore", params: { q, ...(coords ? { lat: String(coords.latitude), lng: String(coords.longitude) } : {}) } })}
-            style={styles.searchInput}
-            accessibilityLabel="Search parking or location"
-          />
-        </View>
-        <View style={styles.legend}>
-          {[
-            [colors.green500, "Available"],
-            [colors.blue600, "Government"],
-            [colors.slate400, "Pending"],
-            [colors.red500, "Unavailable"],
-          ].map(([c, label]) => (
-            <Row key={label} gap={5}>
-              <Dot color={c} />
-              <Txt variant="small" style={{ fontSize: 11 }}>
-                {label}
-              </Txt>
-            </Row>
-          ))}
-        </View>
       </View>
 
-      <Card style={{ marginTop: space.block }}>
-        <Row style={{ justifyContent: "space-between", marginBottom: space.toolbar }}>
-          <View>
-            <Txt variant="h3">Nearest available</Txt>
-            <Txt variant="small">{coords ? "From your location" : "From central Kathmandu"}</Txt>
-          </View>
-          <Button title={busy ? "Locating…" : "Near me"} small variant="secondary" icon={<LocateFixed size={15} color={colors.slate950} />} onPress={() => void locate(true)} />
-        </Row>
-        <Stack>
-          {nearby.data?.items.length ? (
-            nearby.data.items.map((p) => <ParkingCard key={p.id} parking={p} query={locationQuery} />)
-          ) : nearby.isPending ? (
-            <Txt variant="muted">Finding open parking near you…</Txt>
-          ) : (
-            <Empty icon={<Search size={20} color={colors.slate600} />} title="No open parking nearby" body="Most lots close by 21:00. Try the map to see all locations." />
-          )}
-        </Stack>
-        <Button title="See all parking" variant="secondary" style={{ marginTop: space.toolbar }} onPress={() => router.push({ pathname: "/explore", params: coords ? { lat: String(coords.latitude), lng: String(coords.longitude) } : {} })} />
-      </Card>
+      <SectionTitle
+        title={coords ? "Nearest available parking" : "Available now"}
+        action={
+          <Button
+            title={busy ? "Locating…" : coords ? "Update" : (help?.action ?? "Near me")}
+            small
+            variant="secondary"
+            icon={<LocateFixed size={15} color={colors.slate950} />}
+            onPress={() => void locate()}
+          />
+        }
+      />
+      {help && (
+        <View style={{ marginBottom: space.related }}>
+          <Callout title={help.title} icon={<LocateFixed size={16} color={colors.blue700} />}>
+            {`${help.body} Showing parking that is open across the valley.`}
+          </Callout>
+        </View>
+      )}
 
-      <Pressable
-        onPress={() => router.push("/my-parking")}
-        accessibilityRole="button"
-        style={({ pressed }) => [styles.cta, pressed && { opacity: 0.9 }]}
-      >
+      <Stack>
+        {waiting || nearby.isPending ? (
+          <Txt variant="muted">{waiting ? "Finding your location…" : "Finding open parking…"}</Txt>
+        ) : nearby.isError ? (
+          <ErrorView error={nearby.error} onRetry={() => nearby.refetch()} />
+        ) : nearby.data.items.length ? (
+          nearby.data.items.map((p) => <ParkingCard key={p.id} parking={p} query={locationQuery} />)
+        ) : (
+          <Empty
+            icon={<Search size={20} color={colors.slate600} />}
+            title={coords ? "No open parking within 20 km" : "No parking is open right now"}
+            body="Open the map to see every location and its opening hours."
+          />
+        )}
+      </Stack>
+
+      <Button title="Open the parking map" icon={<Map size={18} color="white" />} style={{ marginTop: space.toolbar }} onPress={() => router.push("/explore")} />
+
+      <Pressable onPress={() => router.push("/my-parking")} accessibilityRole="button" style={({ pressed }) => [styles.cta, pressed && { opacity: 0.9 }]}>
         <View style={styles.ctaIcon}>
-          <FileCheck2 size={20} color={colors.slate50} />
+          <FileCheck2 size={20} color={colors.slate950} />
         </View>
         <View style={{ flex: 1 }}>
-          <Txt variant="h3" color={colors.slate50}>
-            Have unused land?
-          </Txt>
-          <Txt variant="small" color="rgba(250,250,249,0.7)">
-            Register it as parking and submit it for approval.
-          </Txt>
+          <Txt variant="h3">Have unused land?</Txt>
+          <Txt variant="small">Register it as parking and submit it for approval.</Txt>
         </View>
-        <ArrowRight size={18} color={colors.slate50} />
+        <ArrowRight size={18} color={colors.slate600} />
       </Pressable>
+      <Row style={{ justifyContent: "center", marginTop: space.related }}>
+        <Txt variant="small">Availability is reported by operators and may change.</Txt>
+      </Row>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  searchOverlay: { position: "absolute", top: 12, left: 12, right: 56, height: 46, backgroundColor: colors.white, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.slate300, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, ...shadow },
-  searchInput: { flex: 1, fontFamily: fonts.body, fontSize: 16, color: colors.slate950 },
-  legend: { position: "absolute", left: 12, bottom: 12, backgroundColor: "rgba(255,255,255,0.96)", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.slate200, paddingHorizontal: 10, paddingVertical: 6, flexDirection: "row", flexWrap: "wrap", gap: 12, maxWidth: "80%" },
-  cta: { marginTop: space.related, borderRadius: radius.md, backgroundColor: colors.violet, padding: space.card, flexDirection: "row", alignItems: "center", gap: 16 },
-  ctaIcon: { width: 44, height: 44, borderRadius: radius.sm, backgroundColor: "rgba(250,250,249,0.1)", alignItems: "center", justifyContent: "center" },
+  search: { height: 50, backgroundColor: colors.white, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.slate300, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14 },
+  searchInput: { flex: 1, fontFamily: fonts.body, fontSize: 16, color: colors.slate950, height: 48 },
+  cta: { marginTop: space.block, borderRadius: radius.md, borderWidth: 1, borderColor: colors.slate200, backgroundColor: colors.white, padding: space.card, flexDirection: "row", alignItems: "center", gap: 16 },
+  ctaIcon: { width: 44, height: 44, borderRadius: radius.sm, backgroundColor: colors.slate100, alignItems: "center", justifyContent: "center" },
 });

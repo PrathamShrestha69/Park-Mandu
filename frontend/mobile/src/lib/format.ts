@@ -1,5 +1,5 @@
 import type { Tone } from "./theme";
-import type { ApplicationStatus, AvailableDays, CameraStatus, DocumentKind, ParkingSummary, ParkingType, Severity, TrafficLevel } from "./types";
+import type { ApplicationStatus, AvailableDays, CameraStatus, DocumentKind, ParkingSummary, ParkingType, Severity, TrafficLevel, VehicleType } from "./types";
 
 export const PARKING_TYPE_LABEL: Record<ParkingType, string> = {
   open_air: "Open-air lot",
@@ -8,6 +8,19 @@ export const PARKING_TYPE_LABEL: Record<ParkingType, string> = {
   rooftop: "Rooftop parking",
   street: "Street parking",
 };
+
+export const VEHICLE_TYPE_LABEL: Record<VehicleType, string> = {
+  car: "Car",
+  bike: "Bike",
+  other: "Others",
+};
+
+export const VEHICLE_TYPES = Object.keys(VEHICLE_TYPE_LABEL) as VehicleType[];
+
+/** "Car, Bike" in the canonical order. */
+export function vehicleTypesLabel(types: readonly VehicleType[] | null | undefined): string {
+  return VEHICLE_TYPES.filter((t) => types?.includes(t)).map((t) => VEHICLE_TYPE_LABEL[t]).join(", ") || "—";
+}
 
 export const DAYS_LABEL: Record<AvailableDays, string> = {
   every_day: "Every day",

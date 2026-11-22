@@ -1,22 +1,49 @@
 import { useMutation } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { Plus, SquareParking } from "lucide-react-native";
+import { Cctv, ChevronRight, Plus, SquareParking } from "lucide-react-native";
 import { useState } from "react";
 import { Alert, StyleSheet, View } from "react-native";
 
 import { PagedList } from "@/components/paged-list";
 import { ApplicationCard, openApplication } from "@/components/parking";
-import { Button, Chips, Empty, Header, Txt } from "@/components/ui";
+import { Badge, Button, Card, Chips, Empty, Header, Row, Txt } from "@/components/ui";
 import { api, formErrors } from "@/lib/api";
 import { invalidate, useApi } from "@/lib/queries";
 import { colors, radius, space } from "@/lib/theme";
-import type { ApplicationDetail, ApplicationSummary, StatusCounts } from "@/lib/types";
+import type { ApplicationDetail, ApplicationSummary, OwnerParking, StatusCounts } from "@/lib/types";
 
 type StatusFilter = "all" | "pending" | "changes_requested" | "approved" | "rejected" | "draft";
+
+const CAMERA_TONE = { connected: "success", waiting: "info", disconnected: "danger", maintenance: "warning" } as const;
+
+/** One of the owner's approved facilities with its live occupancy and camera status. */
+function OwnedParkingCard({ parking }: { parking: OwnerParking }) {
+  const camera = parking.camera;
+  return (
+    <Card onPress={() => router.push(`/monitor/${parking.id}` as never)} accessibilityLabel={`${parking.name}, ${parking.available_spaces} of ${parking.capacity} free`} style={{ gap: 10, marginBottom: 8 }}>
+      <Row style={{ justifyContent: "space-between" }}>
+        <View style={{ flex: 1 }}>
+          <Txt variant="h3" numberOfLines={1}>
+            {parking.name}
+          </Txt>
+          <Txt variant="small" numberOfLines={1}>
+            {`${parking.available_spaces} of ${parking.capacity} free · ${parking.occupied_spaces} parked`}
+          </Txt>
+        </View>
+        <ChevronRight size={18} color={colors.slate500} />
+      </Row>
+      <Row gap={6}>
+        <Cctv size={14} color={colors.slate500} />
+        {camera ? <Badge tone={CAMERA_TONE[camera.connection]} live={camera.connection === "connected"}>{camera.connection_label}</Badge> : <Txt variant="small">No camera connected</Txt>}
+      </Row>
+    </Card>
+  );
+}
 
 export default function MyParking() {
   const [status, setStatus] = useState<StatusFilter>("all");
   const counts = useApi<StatusCounts>("/applications/mine/counts");
+  const owned = useApi<OwnerParking[]>("/my-parkings", undefined, { refetchInterval: 30_000 });
   const create = useMutation({
     mutationFn: () => api<ApplicationDetail>("/applications", { method: "POST" }),
     onSuccess: (app) => {
@@ -59,6 +86,16 @@ export default function MyParking() {
               </View>
             ))}
           </View>
+          {!!owned.data?.length && (
+            <View style={{ marginTop: space.block }}>
+              <Txt variant="h3" style={{ marginBottom: 8 }}>
+                Live occupancy
+              </Txt>
+              {owned.data.map((item) => (
+                <OwnedParkingCard key={item.id} parking={item} />
+              ))}
+            </View>
+          )}
           <Button title="Add a parking location" icon={<Plus size={18} color={colors.slate50} />} style={{ marginTop: space.related, marginBottom: space.block }} loading={create.isPending} onPress={() => create.mutate()} />
           <Chips<StatusFilter>
             value={status}

@@ -85,6 +85,7 @@ export default function Dashboard() {
               <Txt variant="label">{r.road}</Txt>
               <Txt variant="small">
                 Average speed {r.avg_speed_kmh} km/h · {r.camera_code}
+                {r.source === "ai" ? ` · AI tracking${r.vehicle_count !== null ? `, ${r.vehicle_count} in view` : ""}` : ""}
               </Txt>
             </View>
             <Badge tone={TRAFFIC[r.traffic_level].tone}>{TRAFFIC[r.traffic_level].label}</Badge>

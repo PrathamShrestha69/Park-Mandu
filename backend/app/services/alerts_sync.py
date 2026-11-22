@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
+from app.core.realtime import emit_sync, role_room
 from app.core.redis import ALERTS_CHANNEL, sync_redis
 from app.models.enums import AlertSeverity, ViolationType
 from app.models.monitoring import Alert, Camera
@@ -76,19 +77,18 @@ def create_alert(
 
 
 def publish_alert(alert: Alert, camera: Camera) -> None:
-    sync_redis.publish(
-        ALERTS_CHANNEL,
-        json.dumps(
-            {
-                "id": str(alert.id),
-                "code": alert.code,
-                "severity": alert.severity.value,
-                "violation_label": VIOLATION_LABELS[alert.violation_type],
-                "camera_code": camera.code,
-                "road": camera.road,
-                "area": camera.area,
-                "plate_number": alert.plate_number,
-                "detected_at": alert.detected_at.isoformat(),
-            }
-        ),
-    )
+    payload = {
+        "id": str(alert.id),
+        "code": alert.code,
+        "severity": alert.severity.value,
+        "violation_label": VIOLATION_LABELS[alert.violation_type],
+        "camera_code": camera.code,
+        "road": camera.road,
+        "area": camera.area,
+        "plate_number": alert.plate_number,
+        "detected_at": alert.detected_at.isoformat(),
+    }
+    sync_redis.publish(ALERTS_CHANNEL, json.dumps(payload))
+    # Everyone who monitors alerts refreshes their lists; the officer to send out is chosen by dispatch.
+    for room in ("police", "admin"):
+        emit_sync("alert:new", payload, role_room(room))

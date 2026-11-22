@@ -7,3 +7,4 @@ numpy>=1.24.0
 pyyaml>=6.0
 pillow>=9.5.0
 matplotlib>=3.7.0
+lap>=0.5.12

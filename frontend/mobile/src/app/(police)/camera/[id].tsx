@@ -2,7 +2,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { Clock, Gauge, MapPin, TriangleAlert } from "lucide-react-native";
 import { View } from "react-native";
 
-import { LiveFeed } from "@/components/live-feed";
+import { LiveFeed, LiveTracking } from "@/components/live-feed";
 import { MapView } from "@/components/map-view";
 import { AlertRow } from "@/components/police";
 import { Badge, Button, Card, Empty, ErrorView, Header, Loading, Row, Screen, SectionTitle, Txt } from "@/components/ui";
@@ -26,10 +26,11 @@ export default function CameraDetail() {
   return (
     <Screen refreshing={camera.isRefetching} onRefresh={() => Promise.all([camera.refetch(), alerts.refetch()])}>
       <Header title={c.code} subtitle={live ? "Live camera feed" : CAMERA_STATUS[c.status].label} back right={<Badge tone={CAMERA_STATUS[c.status].tone} live={live}>{CAMERA_STATUS[c.status].label}</Badge>} />
-      <LiveFeed streamUrl={c.stream_url} label={`${c.code} · ${formatClock(c.last_heartbeat_at)}`} offline={!live} detection={latest ? `${latest.vehicle_type} · ${Math.round(latest.confidence * 100)}%` : undefined} height={220} />
+      <LiveFeed streamUrl={c.ai_enabled ? c.stream_url : null} aiEnabled={c.ai_enabled} label={`${c.code} · ${formatClock(c.last_heartbeat_at)}`} offline={!live} detection={latest ? `${latest.vehicle_type} · ${Math.round(latest.confidence * 100)}%` : undefined} height={220} />
       <Txt variant="small" style={{ marginTop: 6 }}>
-        {c.stream_url ? "Live AI view · red boxes are vehicles flagged as parked" : `Simulated camera · no AI detector connected (${c.zone})`}
+        {c.ai_enabled ? "Live AI view · each vehicle keeps its number while in view · red boxes are flagged as parked" : `Simulated camera · no AI detector connected (${c.zone})`}
       </Txt>
+      {c.ai_enabled && <LiveTracking cameraId={c.id} />}
 
       <Card style={{ marginTop: 12, gap: 16 }}>
         <Txt variant="h3">{c.name}</Txt>
@@ -55,7 +56,9 @@ export default function CameraDetail() {
           <Gauge size={18} color={ICON} />
           <View style={{ flex: 1 }}>
             <Txt variant="label">Traffic: {TRAFFIC[c.traffic_level].label}</Txt>
-            <Txt variant="small">Average speed {c.avg_speed_kmh} km/h</Txt>
+            <Txt variant="small">
+              Average speed {c.avg_speed_kmh} km/h ({!c.ai_enabled ? "simulated" : c.tracking?.avg_speed_kmh != null ? "measured by AI tracking" : "last known value"})
+            </Txt>
           </View>
         </Row>
       </Card>

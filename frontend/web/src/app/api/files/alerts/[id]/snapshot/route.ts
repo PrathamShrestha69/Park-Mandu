@@ -3,8 +3,8 @@ import { cookies } from "next/headers";
 import { API_URL } from "@/lib/api";
 import { ACCESS_COOKIE } from "@/lib/session";
 
-/** Streams the AI detector's vehicle photo for an alert; the API restricts it to police and admins. */
-export async function GET(_request: Request, ctx: RouteContext<"/api/files/alerts/[id]/snapshot">) {
+/** Streams the vehicle photo an AI detector attached to an alert; the API restricts it to police and admins. */
+export async function GET(_: Request, ctx: RouteContext<"/api/files/alerts/[id]/snapshot">) {
   const { id } = await ctx.params;
   const token = (await cookies()).get(ACCESS_COOKIE)?.value;
   if (!token) return new Response("Unauthorized", { status: 401 });

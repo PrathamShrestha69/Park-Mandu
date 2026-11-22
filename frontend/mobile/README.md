@@ -1,16 +1,16 @@
 # Park Mandu — Mobile app (Expo / React Native)
 
 The Park Mandu smart-parking and traffic-monitoring service for Android and iOS. One app serves
-all three roles; after sign-in the user's role decides which tabs they see:
+public users and traffic police; after sign-in the user's role decides which tabs they see.
+Administrators use the web app: the mobile app has no administrator screens and the API refuses
+administrator sign-ins from it.
 
-- **Public user / landowner:** Home (live map + nearest open parking), Map (search & filters),
-  My Parking (5-step land registration with uploads, status timeline, resubmission),
-  Notifications, Profile
-- **Traffic police** (dark navy theme): Dashboard (live stats, latest alert, CCTV map, road
-  conditions), Cameras, Alerts (take ownership, dismiss, navigate), Incidents (notes, resolve),
-  Profile with duty toggle
-- **Administrator:** Overview (metrics and charts), Applications (review: approve, reject,
-  request changes or documents), valley Map with layers, Users (suspend/reactivate), More
+- **Public user / landowner:** Home (nearest available parking with distance and one-tap
+  directions), Map (full-screen map with search, filters and a pull-up list), My Parking (5-step
+  land registration with uploads, status timeline, resubmission), Notifications, Profile
+- **Traffic police:** Dashboard (live stats, latest alert, CCTV map, road conditions), Cameras
+  (live AI video and tracked vehicles for cameras with a detector), Alerts (take ownership, dismiss,
+  navigate), Incidents (notes, resolve), Profile with duty toggle
 
 ## Run it
 
@@ -42,8 +42,14 @@ In development builds the sign-in screen lists demo accounts for each role (pass
 ## How it is built
 
 - **Expo SDK 58, React Native 0.88, Expo Router.** File-based routes in `src/app/`, with role
-  groups `(auth)`, `(public)`, `(police)` and `(admin)` guarded by `Stack.Protected`, so a role
-  can only reach its own screens.
+  groups `(auth)`, `(public)` and `(police)` guarded by `Stack.Protected`, so a role can only
+  reach its own screens.
+- **Safe areas:** the tab bar grows by the device's bottom inset, and screens pushed on top of the
+  tabs add that inset themselves (`src/components/tab-options.ts`), so nothing sits under the system
+  navigation bar or the home indicator.
+- **Location:** `src/lib/location.ts` keeps one shared device position. The app asks for permission
+  once; if it is refused or unavailable, lists fall back to "available now" without distances and
+  explain how to turn location on. No default position is ever assumed.
 - **The server does the work.** TanStack Query fetches from the API; lists use the API's
   pagination as infinite scroll (`usePaged`), and every filter, search and sort is a query
   parameter evaluated on the server. Validation errors come back from the API and are shown on

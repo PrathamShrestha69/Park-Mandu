@@ -35,6 +35,11 @@ export default function Cameras() {
             <Txt variant="small">
               {formatClock(c.last_heartbeat_at)} · {c.active_violations} active violation{c.active_violations === 1 ? "" : "s"}
             </Txt>
+            {c.ai_enabled && (
+              <Txt variant="small" color={colors.blue700} style={{ fontFamily: fonts.medium }}>
+                AI tracking{c.tracking ? ` · ${c.tracking.vehicle_count} vehicle${c.tracking.vehicle_count === 1 ? "" : "s"} in view` : " · not reporting"}
+              </Txt>
+            )}
           </View>
         </Card>
       )}
@@ -52,7 +57,7 @@ export default function Cameras() {
                 returnKeyType="search"
                 placeholder="Search camera ID, road or area"
                 placeholderTextColor={colors.slate500}
-                style={{ flex: 1, height: 44, fontFamily: fonts.body, fontSize: 15, color: "white" }}
+                style={{ flex: 1, height: 44, fontFamily: fonts.body, fontSize: 15, color: colors.slate950 }}
                 accessibilityLabel="Search cameras"
               />
             </Row>

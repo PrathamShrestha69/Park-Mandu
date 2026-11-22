@@ -1,7 +1,7 @@
 import { Image } from "expo-image";
 import { router } from "expo-router";
-import { Check, ChevronRight, CircleCheck, CircleX, Clock, FileText, MapPin, PenLine, X } from "lucide-react-native";
-import { StyleSheet, View } from "react-native";
+import { BadgeCheck, Check, ChevronRight, CircleCheck, CircleX, Clock, FileText, MapPin, Navigation, PenLine, X } from "lucide-react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 
 import { authHeaders } from "@/lib/api";
 import { API_URL } from "@/lib/config";
@@ -16,12 +16,19 @@ import {
   formatDistance,
   formatHours,
   formatPrice,
+  vehicleTypesLabel,
   walkingMinutes,
 } from "@/lib/format";
 import { colors, toneColors, usePalette } from "@/lib/theme";
 import type { ApplicationDetail, ApplicationStatus, ApplicationSummary, ParkingSummary } from "@/lib/types";
 
 import { Badge, Card, KV, Row, Txt } from "./ui";
+
+/** Says in words what the marker colour means: free spaces, full, or closed. */
+export function AvailabilityBadge({ parking }: { parking: ParkingSummary }) {
+  if (parking.marker_tone !== "red") return <Badge tone="success">{`${parking.available_spaces} free`}</Badge>;
+  return <Badge tone="danger">{parking.is_open_now ? "Full" : "Closed"}</Badge>;
+}
 
 export function ParkingCard({ parking, query }: { parking: ParkingSummary; query?: string }) {
   const unavailable = parking.marker_tone === "red";
@@ -41,21 +48,42 @@ export function ParkingCard({ parking, query }: { parking: ParkingSummary; query
           </Txt>
           <Row gap={4} style={{ marginTop: 3 }}>
             <MapPin size={13} color={colors.slate500} />
-            <Txt variant="small">{distance ? `${distance} · ${walkingMinutes(parking.distance_m)}` : parking.area}</Txt>
+            <Txt variant="small" numberOfLines={1} style={{ flex: 1 }}>
+              {distance ? `${distance} · ${walkingMinutes(parking.distance_m)} · ${parking.area}` : parking.area}
+            </Txt>
           </Row>
+          <Txt variant="small" numberOfLines={1} style={{ marginTop: 2 }}>
+            {vehicleTypesLabel(parking.vehicle_types)}
+          </Txt>
         </View>
-        {unavailable ? <Badge tone="danger">{parking.is_open_now ? "Full" : "Closed"}</Badge> : <Badge tone="success">{`${parking.available_spaces} spaces`}</Badge>}
+        <AvailabilityBadge parking={parking} />
       </Row>
       <View style={styles.footer}>
-        <Txt variant="h3" color={colors.green700}>
-          {formatPrice(parking)}
-        </Txt>
-        <Row gap={2}>
-          <Txt variant="label" color={colors.blue600}>
-            View details
+        <Row gap={8} style={{ flex: 1 }}>
+          <Txt variant="h3" color={colors.green700}>
+            {formatPrice(parking)}
           </Txt>
-          <ChevronRight size={16} color={colors.blue600} />
+          {parking.category === "government" && (
+            <Row gap={3}>
+              <BadgeCheck size={14} color={colors.blue600} />
+              <Txt variant="small" color={colors.blue700}>
+                Government
+              </Txt>
+            </Row>
+          )}
         </Row>
+        <Pressable
+          onPress={() => router.navigate({ pathname: "/explore", params: { navigate: parking.id } } as never)}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={`Directions to ${parking.name}`}
+          style={({ pressed }) => [styles.directions, pressed && { opacity: 0.7 }]}
+        >
+          <Navigation size={14} color={colors.blue700} />
+          <Txt variant="label" color={colors.blue700} style={{ fontSize: 13 }}>
+            Directions
+          </Txt>
+        </Pressable>
       </View>
     </Card>
   );
@@ -181,6 +209,7 @@ export function PropertySummary({ app }: { app: ApplicationDetail }) {
       <KV label="Land size" value={app.land_size_sqm ? `${app.land_size_sqm} m²` : null} />
       <KV label="Capacity" value={app.capacity ? `${app.capacity} vehicles` : null} />
       <KV label="Parking type" value={app.parking_type ? PARKING_TYPE_LABEL[app.parking_type] : null} />
+      <KV label="Vehicle types" value={app.vehicle_types.length ? vehicleTypesLabel(app.vehicle_types) : null} />
       <KV label="Hours" value={app.opens_at ? `${formatHours(app.opens_at, app.closes_at)}${app.available_days ? `, ${DAYS_LABEL[app.available_days]}` : ""}` : null} />
       <KV label="Pricing" value={app.pricing_mode === "free" ? "Free parking" : app.price_per_hour ? `NPR ${Number(app.price_per_hour).toFixed(0)} / hour` : null} />
     </>
@@ -232,6 +261,7 @@ export function DocumentList({ app, onOpen }: { app: ApplicationDetail; onOpen?:
 const styles = StyleSheet.create({
   icon: { width: 46, height: 46, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   footer: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderTopWidth: 1, borderTopColor: colors.slate100, marginTop: 12, paddingTop: 11 },
+  directions: { flexDirection: "row", alignItems: "center", gap: 5, height: 32, paddingHorizontal: 10, borderRadius: 8, backgroundColor: colors.blue50 },
   thumb: { width: 52, height: 60, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   dot: { width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   docThumb: { width: 42, height: 42, borderRadius: 9, backgroundColor: colors.slate100 },

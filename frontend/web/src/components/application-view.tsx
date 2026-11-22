@@ -1,6 +1,6 @@
 import { Check, Eye, FileText, X } from "lucide-react";
 
-import { APPLICATION_STATUS, DAYS_LABEL, DOCUMENT_LABEL, PARKING_TYPE_LABEL, formatBytes, formatDateTime, formatHours } from "@/lib/format";
+import { APPLICATION_STATUS, DAYS_LABEL, DOCUMENT_LABEL, PARKING_TYPE_LABEL, formatBytes, formatDateTime, formatHours, vehicleTypesLabel } from "@/lib/format";
 import type { ApplicationDetail, DocumentKind } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -110,6 +110,7 @@ export function PropertySummary({ app }: { app: ApplicationDetail }) {
       <KV label="Land size" value={app.land_size_sqm ? `${app.land_size_sqm.toLocaleString()} m²` : null} />
       <KV label="Capacity" value={app.capacity ? `${app.capacity} vehicles` : null} />
       <KV label="Parking type" value={app.parking_type ? PARKING_TYPE_LABEL[app.parking_type] : null} />
+      <KV label="Vehicle types" value={app.vehicle_types.length ? vehicleTypesLabel(app.vehicle_types) : null} />
       <KV
         label="Operating hours"
         value={app.opens_at ? `${formatHours(app.opens_at, app.closes_at)}, ${app.available_days ? DAYS_LABEL[app.available_days] : ""}` : null}

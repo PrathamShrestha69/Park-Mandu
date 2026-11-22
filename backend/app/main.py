@@ -2,6 +2,7 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+import socketio
 from asgi_correlation_id import CorrelationIdFilter, CorrelationIdMiddleware
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,6 +15,7 @@ from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.errors import register_exception_handlers
 from app.core.rate_limit import limiter
+from app.core.realtime import sio
 from app.core.redis import redis_client
 from app.core.security import CLIENT_TYPE_HEADER, CSRF_HEADER
 from app.db.session import async_engine
@@ -29,11 +31,9 @@ for handler in logging.getLogger().handlers:
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     yield
-    await redis_client.aclose()
-    await async_engine.dispose()
 
 
-app = FastAPI(
+api = FastAPI(
     title=settings.app_name,
     version="1.0.0",
     description="Government smart parking and traffic monitoring service for Kathmandu Valley.",
@@ -44,12 +44,12 @@ app = FastAPI(
     openapi_url=None if settings.is_production else "/openapi.json",
 )
 
-app.state.limiter = limiter
-register_exception_handlers(app)
+api.state.limiter = limiter
+register_exception_handlers(api)
 
-app.add_middleware(SlowAPIMiddleware)
-app.add_middleware(GZipMiddleware, minimum_size=1024)
-app.add_middleware(
+api.add_middleware(SlowAPIMiddleware)
+api.add_middleware(GZipMiddleware, minimum_size=1024)
+api.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_credentials=True,
@@ -57,10 +57,10 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type", CSRF_HEADER, CLIENT_TYPE_HEADER, "X-Request-ID"],
     expose_headers=["X-Request-ID"],
 )
-app.add_middleware(CorrelationIdMiddleware, header_name="X-Request-ID")
+api.add_middleware(CorrelationIdMiddleware, header_name="X-Request-ID")
 
 
-@app.middleware("http")
+@api.middleware("http")
 async def security_headers(request: Request, call_next):  # type: ignore[no-untyped-def]
     response: Response = await call_next(request)
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
@@ -73,17 +73,26 @@ async def security_headers(request: Request, call_next):  # type: ignore[no-unty
     return response
 
 
-app.include_router(api_router, prefix=settings.api_prefix)
+api.include_router(api_router, prefix=settings.api_prefix)
 
 
-@app.get("/health", include_in_schema=False)
+@api.get("/health", include_in_schema=False)
 async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.get("/health/ready", include_in_schema=False)
+@api.get("/health/ready", include_in_schema=False)
 async def readiness() -> dict[str, str]:
     async with async_engine.connect() as conn:
         await conn.execute(text("SELECT 1"))
     await redis_client.ping()
     return {"status": "ready"}
+
+
+async def _shutdown() -> None:
+    await redis_client.aclose()
+    await async_engine.dispose()
+
+
+# The ASGI entry point (`app.main:app`): Socket.IO answers /socket.io, everything else goes to FastAPI.
+app = socketio.ASGIApp(sio, other_asgi_app=api, socketio_path="/socket.io", on_shutdown=_shutdown)

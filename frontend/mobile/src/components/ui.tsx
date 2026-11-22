@@ -20,6 +20,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { colors, fonts, radius, space, toneColors, usePalette, type Tone } from "@/lib/theme";
 
+import { useBottomInset } from "./tab-options";
+
 // --------------------------------------------------------------------------- text
 
 type Variant = "h1" | "h2" | "h3" | "body" | "muted" | "small" | "label" | "eyebrow" | "mono";
@@ -76,13 +78,16 @@ export function Screen({
   contentStyle?: StyleProp<ViewStyle>;
 }) {
   const p = usePalette();
+  // Inside tabs the tab bar clears the system navigation area; pushed screens have to do it themselves.
+  const bottomInset = useBottomInset();
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: p.page }} edges={edges}>
       {scroll ? (
         // Edge-to-edge Android no longer resizes the window for the keyboard, so avoid it here on both platforms.
         <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <ScrollView
-          contentContainerStyle={[styles.screen, contentStyle]}
+          style={{ flex: 1 }}
+          contentContainerStyle={[styles.screen, { paddingBottom: space.block + 8 + bottomInset }, contentStyle]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           refreshControl={onRefresh ? <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={p.primary} /> : undefined}
@@ -91,7 +96,7 @@ export function Screen({
         </ScrollView>
         </KeyboardAvoidingView>
       ) : (
-        <View style={[{ flex: 1 }, contentStyle]}>{children}</View>
+        <View style={[{ flex: 1, paddingBottom: bottomInset }, contentStyle]}>{children}</View>
       )}
     </SafeAreaView>
   );
@@ -403,6 +408,40 @@ export function FormMessage({ message, ok }: { message: string | null | undefine
   );
 }
 
+/** Like Chips, but any number can be selected (e.g. accepted vehicle types). */
+export function MultiChips<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: { value: T; label: string }[];
+  value: T[];
+  onChange: (value: T[]) => void;
+}) {
+  const p = usePalette();
+  return (
+    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+      {options.map((o) => {
+        const active = value.includes(o.value);
+        return (
+          <Pressable
+            key={o.value}
+            onPress={() => onChange(active ? value.filter((v) => v !== o.value) : [...value, o.value])}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: active }}
+            style={[styles.chip, { backgroundColor: active ? p.brandTint : p.surface, borderColor: active ? "rgba(114,62,230,0.35)" : p.border }]}
+          >
+            <Text style={{ fontFamily: fonts.medium, fontSize: 13, color: active ? p.brand : p.textMuted }}>
+              {active ? "✓ " : ""}
+              {o.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 export function Chips<T extends string>({
   options,
   value,
@@ -528,7 +567,7 @@ export function CctvPreview({ label, offline, detection, height = 180 }: { label
 }
 
 const styles = StyleSheet.create({
-  screen: { paddingHorizontal: space.gutter, paddingTop: space.block, paddingBottom: 40 },
+  screen: { paddingHorizontal: space.gutter, paddingTop: space.block },
   header: { flexDirection: "row", alignItems: "flex-start", gap: 12, marginBottom: space.block },
   sectionTitle: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: space.section - 8, marginBottom: space.related },
   card: { borderWidth: 1, borderRadius: radius.md, padding: space.card },

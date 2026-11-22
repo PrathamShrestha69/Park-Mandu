@@ -29,6 +29,7 @@ const ACTION_LABEL: Record<string, string> = {
   "police.duty": "Changed duty status",
   "user.created": "Created a staff account",
   "user.updated": "Updated a user",
+  "issue.updated": "Updated an issue report",
 };
 
 async function AuditPageContent(props: PageProps<"/admin/audit">) {

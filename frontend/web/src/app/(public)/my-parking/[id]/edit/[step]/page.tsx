@@ -6,7 +6,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { OwnerSummary, PropertySummary, documentUrl } from "@/components/application-view";
 import { Callout, PageHead, PageSkeleton, surface } from "@/components/common";
-import { ActionForm, CheckField, FormAlert, SelectField, SubmitButton, TextField } from "@/components/forms";
+import { ActionForm, CheckField, FieldError, FormAlert, SelectField, SubmitButton, TextField } from "@/components/forms";
 import { LocationPicker } from "@/components/map/location-picker";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,7 +21,7 @@ import {
   uploadDocumentAction,
 } from "@/lib/actions/applications";
 import { apiGet } from "@/lib/api";
-import { DAYS_LABEL, DOCUMENT_LABEL, PARKING_TYPE_LABEL, formatBytes } from "@/lib/format";
+import { DAYS_LABEL, DOCUMENT_LABEL, PARKING_TYPE_LABEL, VEHICLE_TYPES, VEHICLE_TYPE_LABEL, formatBytes } from "@/lib/format";
 import type { ApplicationDetail, DocumentKind } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -123,6 +123,7 @@ const choiceClass = cn(
   "hover:border-foreground/25 has-checked:border-foreground has-checked:ring-1 has-checked:ring-foreground has-focus-visible:ring-2 has-focus-visible:ring-ring",
 );
 const radioClass = "size-4 shrink-0 appearance-none rounded-full border-2 border-input bg-card transition-[border] checked:border-[5px] checked:border-foreground";
+const checkClass = "size-4 shrink-0 appearance-none rounded-[4px] border-2 border-input bg-card transition-[border] checked:border-[5px] checked:border-foreground";
 
 function PropertyStep({ app }: { app: ApplicationDetail }) {
   return (
@@ -141,6 +142,26 @@ function PropertyStep({ app }: { app: ApplicationDetail }) {
         placeholder="Select type"
         options={Object.entries(PARKING_TYPE_LABEL).map(([value, label]) => ({ value, label }))}
       />
+      <FieldSet className="gap-2">
+        <FieldLegend variant="label" className="mb-0">
+          Vehicle types accepted
+        </FieldLegend>
+        <div className="grid grid-cols-3 gap-2">
+          {VEHICLE_TYPES.map((type) => (
+            <label key={type} className={choiceClass}>
+              <input
+                type="checkbox"
+                name="vehicle_types"
+                value={type}
+                defaultChecked={app.vehicle_types.length ? app.vehicle_types.includes(type) : type !== "other"}
+                className={checkClass}
+              />
+              {VEHICLE_TYPE_LABEL[type]}
+            </label>
+          ))}
+        </div>
+        <FieldError name="vehicle_types" />
+      </FieldSet>
       <div className="grid grid-cols-2 gap-5">
         <TextField name="opens_at" label="Opens at" type="time" defaultValue={app.opens_at?.slice(0, 5) ?? "07:00"} />
         <TextField name="closes_at" label="Closes at" type="time" defaultValue={app.closes_at?.slice(0, 5) ?? "21:00"} />

@@ -163,6 +163,7 @@ async def save_property(
     ensure_editable(app)
     for field, value in body.model_dump().items():
         setattr(app, field, value.strip() if isinstance(value, str) else value)
+    app.vehicle_types = [v.value for v in body.vehicle_types]
     app.completed_step = max(app.completed_step, 2)
     await db.commit()
     return await detail_response(db, await load_application(db, application_id, user))

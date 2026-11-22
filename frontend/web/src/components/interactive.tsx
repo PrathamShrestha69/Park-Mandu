@@ -132,19 +132,22 @@ export function Dialog({
   );
 }
 
+const LOCATION_ASKED_KEY = "pm_location_asked";
+
 /**
  * Asks the browser for the user's position and puts it in the URL (?lat=&lng=), so the server
- * can sort parking by distance. Auto-runs when location permission was already granted.
+ * can sort parking by distance. Runs by itself when permission was already granted; with `askOnce`
+ * it also raises the browser's permission prompt the first time the page is opened in a session.
  */
-export function LocateMe({ className, label = "Use my location" }: { className?: string; label?: string }) {
+export function LocateMe({ className, label = "Use my location", askOnce = false }: { className?: string; label?: string; askOnce?: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [busy, setBusy] = useState(false);
 
-  const locate = () => {
+  const locate = (silent = false) => {
     if (!navigator.geolocation) {
-      toast.error("Location is not available on this device.");
+      if (!silent) toast.error("Location is not available on this device. Search by area instead.");
       return;
     }
     setBusy(true);
@@ -157,9 +160,14 @@ export function LocateMe({ className, label = "Use my location" }: { className?:
         router.replace(`${pathname}?${params}`, { scroll: false });
         setBusy(false);
       },
-      () => {
+      (error) => {
         setBusy(false);
-        toast.error("We couldn't get your location. Showing parking around central Kathmandu.");
+        if (error.code === error.PERMISSION_DENIED) {
+          // A refusal of the automatic prompt is respected quietly; a refused button press is explained.
+          if (!silent) toast("Location access is blocked", { description: "Allow location for this site in your browser settings, or search by area instead." });
+        } else if (!silent) {
+          toast.error("We couldn't find your location. Showing all parking; search by area to narrow it down.");
+        }
       },
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 60_000 },
     );
@@ -169,15 +177,33 @@ export function LocateMe({ className, label = "Use my location" }: { className?:
     if (searchParams.has("lat")) return;
     navigator.permissions
       ?.query({ name: "geolocation" })
-      .then((p) => p.state === "granted" && locate())
+      .then((p) => {
+        if (p.state === "granted") locate(true);
+        else if (p.state === "prompt" && askOnce && !sessionStorage.getItem(LOCATION_ASKED_KEY)) {
+          sessionStorage.setItem(LOCATION_ASKED_KEY, "1");
+          locate(true);
+        }
+      })
       .catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
-    <Button type="button" variant="outline" size="sm" className={className} onClick={locate} disabled={busy}>
+    <Button type="button" variant="outline" size="sm" className={className} onClick={() => locate()} disabled={busy}>
       {busy ? <Spinner /> : <LocateFixed />}
       {busy ? "Locating…" : label}
     </Button>
   );
+}
+
+/** Re-renders the page every `ms` while the tab is visible (camera connection status has no push event). */
+export function AutoRefresh({ ms = 10_000 }: { ms?: number }) {
+  const router = useRouter();
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (document.visibilityState === "visible") router.refresh();
+    }, ms);
+    return () => clearInterval(id);
+  }, [router, ms]);
+  return null;
 }

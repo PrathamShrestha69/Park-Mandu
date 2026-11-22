@@ -6,9 +6,10 @@ from typing import Any
 
 import httpx
 from PIL import Image, ImageOps, UnidentifiedImageError
-from sqlalchemy import delete, func, or_, select, update
+from sqlalchemy import and_, delete, func, or_, select, update
 
 from app.core.config import settings
+from app.core.realtime import emit_sync, user_room
 from app.core.redis import sync_redis
 from app.db.session import SyncSessionLocal
 from app.models.application import ApplicationDocument
@@ -25,7 +26,7 @@ from app.models.enums import (
 from app.models.monitoring import Alert, Camera
 from app.models.notification import DeviceToken, Notification
 from app.models.user import AuthSession
-from app.services import storage
+from app.services import dispatch, parking_enforcement, storage
 from app.services.alerts_sync import (
     COLORS,
     DIRECTIONS,
@@ -35,6 +36,7 @@ from app.services.alerts_sync import (
     publish_alert,
     random_plate,
 )
+from app.services.traffic import TRAFFIC_SPEED_BANDS
 from app.worker.celery_app import celery_app
 
 log = logging.getLogger(__name__)
@@ -75,6 +77,25 @@ def send_notification(
         session.add(notification)
         session.commit()
         tokens = session.scalars(select(DeviceToken.token).where(DeviceToken.user_id == uuid.UUID(user_id))).all()
+        unread = session.scalar(
+            select(func.count()).where(Notification.user_id == uuid.UUID(user_id), Notification.read_at.is_(None))
+        )
+        notification_id = str(notification.id)
+
+    emit_sync(
+        "notification:new",
+        {
+            "notification_id": notification_id,
+            "kind": kind,
+            "tone": tone,
+            "title": title,
+            "body": body,
+            "entity_type": entity_type,
+            "entity_id": entity_id,
+            "unread": int(unread or 0),
+        },
+        user_room(user_id),
+    )
 
     if settings.expo_push_enabled and tokens:
         messages = [
@@ -88,7 +109,7 @@ def send_notification(
             for token in tokens
         ]
         httpx.post(EXPO_PUSH_URL, json=messages, timeout=10).raise_for_status()
-    return str(notification.id)
+    return notification_id
 
 
 def notify(
@@ -163,6 +184,9 @@ def ingest_detection(payload: dict[str, Any]) -> str | None:
         if camera is None:
             log.warning("Detection for unknown camera %s", payload["camera_code"])
             return discard()
+        if camera.owner_id is not None:
+            # A vehicle standing in an owner's parking lot is a customer, not a violation.
+            return discard()
         detected_at = payload.get("detected_at")
         alert = create_alert(
             session,
@@ -178,41 +202,49 @@ def ingest_detection(payload: dict[str, Any]) -> str | None:
         )
         session.commit()
         publish_alert(alert, camera)
+        dispatch_alert_task.delay(str(alert.id))
         return str(alert.id)
+
+
+# A camera with a real AI detector goes offline this long after the detector's last report.
+DETECTOR_TIMEOUT = timedelta(minutes=2)
 
 
 @celery_app.task
 def simulate_camera_telemetry() -> int:
-    """Demo stand-in for camera heartbeats and traffic analytics. Always marks silent cameras offline."""
+    """Marks silent cameras offline and, in demo mode, stands in for the cameras without a detector.
+
+    Cameras that a real AI detector reports for are never simulated: they are live only while the
+    detector keeps reporting, and their traffic figures come from its tracking.
+    """
     now = datetime.now(UTC)
-    if not settings.simulate_detections:
-        # Real detectors heartbeat via POST /ingest/heartbeat; only the offline sweep runs.
-        with SyncSessionLocal() as session:
+    silent = or_(Camera.last_heartbeat_at.is_(None), Camera.last_heartbeat_at < now - DETECTOR_TIMEOUT)
+    # Owner-connected parking cameras only ever reflect their real detector.
+    simulated = and_(Camera.detector_seen_at.is_(None), Camera.owner_id.is_(None))
+    with SyncSessionLocal() as session:
+        session.execute(
+            update(Camera)
+            .where(Camera.detector_seen_at.is_not(None), Camera.status == CameraStatus.LIVE, silent)
+            .values(status=CameraStatus.OFFLINE)
+        )
+        if not settings.simulate_detections:
+            # Nothing stands in for the remaining cameras, so they are offline too.
             session.execute(
                 update(Camera)
-                .where(
-                    Camera.status == CameraStatus.LIVE,
-                    or_(Camera.last_heartbeat_at.is_(None), Camera.last_heartbeat_at < now - timedelta(minutes=2)),
-                )
+                .where(simulated, Camera.status == CameraStatus.LIVE, silent)
                 .values(status=CameraStatus.OFFLINE)
             )
             session.commit()
-        return 0
-    with SyncSessionLocal() as session:
-        cameras = session.scalars(select(Camera).where(Camera.status == CameraStatus.LIVE)).all()
+            return 0
+        cameras = session.scalars(select(Camera).where(simulated, Camera.status == CameraStatus.LIVE)).all()
         for camera in cameras:
             camera.last_heartbeat_at = now
+            # Each tick is the simulated camera's traffic measurement, whether or not the level changes.
+            camera.traffic_updated_at = now
             if random.random() < 0.35:
                 level = random.choices(list(TrafficLevel), weights=[45, 30, 17, 8])[0]
-                speed = {"clear": (28, 42), "moderate": (18, 28), "slow": (8, 18), "congested": (2, 8)}[level.value]
                 camera.traffic_level = level
-                camera.avg_speed_kmh = random.randint(*speed)
-        # Cameras that stop sending heartbeats are marked offline.
-        session.execute(
-            update(Camera)
-            .where(Camera.status == CameraStatus.LIVE, Camera.last_heartbeat_at < now - timedelta(minutes=10))
-            .values(status=CameraStatus.OFFLINE)
-        )
+                camera.avg_speed_kmh = random.randint(*TRAFFIC_SPEED_BANDS[level])
         session.commit()
         return len(cameras)
 
@@ -223,8 +255,12 @@ def simulate_detection() -> str | None:
     if not settings.simulate_detections or random.random() > 0.55:
         return None
     with SyncSessionLocal() as session:
+        # Cameras with a real detector raise their own alerts; only simulated ones get invented ones.
         camera = session.scalar(
-            select(Camera).where(Camera.status == CameraStatus.LIVE).order_by(func.random()).limit(1)
+            select(Camera)
+            .where(Camera.status == CameraStatus.LIVE, Camera.detector_seen_at.is_(None), Camera.owner_id.is_(None))
+            .order_by(func.random())
+            .limit(1)
         )
         if camera is None:
             return None
@@ -241,7 +277,38 @@ def simulate_detection() -> str | None:
         )
         session.commit()
         publish_alert(alert, camera)
+        dispatch_alert_task.delay(str(alert.id))
         return str(alert.id)
+
+
+@celery_app.task
+def evaluate_parked_vehicle_task(vehicle_id: str) -> str | None:
+    """Traffic-aware illegal-parking check for one vehicle the Parking Availability Bridge reports as PARKED."""
+    with SyncSessionLocal() as session:
+        result = parking_enforcement.evaluate(session, uuid.UUID(vehicle_id))
+        return result.value if result else None
+
+
+@celery_app.task
+def reassess_parking_task(camera_id: str | None = None) -> int:
+    """Re-judges parked vehicles that were held back (traffic jam / unknown traffic). Returns alerts raised."""
+    with SyncSessionLocal() as session:
+        return parking_enforcement.reassess(session, uuid.UUID(camera_id) if camera_id else None)
+
+
+@celery_app.task
+def dispatch_alert_task(alert_id: str) -> str | None:
+    """Sends the incident to the nearest available officer within 1 km (and nobody else)."""
+    with SyncSessionLocal() as session:
+        result = dispatch.dispatch_alert(session, uuid.UUID(alert_id))
+        return result.value if result else None
+
+
+@celery_app.task
+def retry_dispatches() -> int:
+    """Moves unanswered call-outs on to the next nearest officer and retries ones that found nobody."""
+    with SyncSessionLocal() as session:
+        return dispatch.retry_pending(session)
 
 
 @celery_app.task
@@ -267,6 +334,17 @@ def escalate_stale_alerts() -> int:
         )
         session.commit()
         return escalated or 0
+
+
+@celery_app.task
+def reconcile_payments() -> dict[str, int]:
+    """Verifies unfinished eSewa/Khalti payments, retries bookings that failed to confirm, expires holds."""
+    from app.services.payments.service import reconcile
+
+    if not settings.payments_enabled:
+        return {}
+    with SyncSessionLocal() as session:
+        return reconcile(session)
 
 
 @celery_app.task

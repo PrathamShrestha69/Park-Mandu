@@ -22,11 +22,13 @@ async function CameraDetailPageContent(props: PageProps<"/police/cameras/[id]">)
   ]);
   const live = camera.status === "live";
   const latest = alerts.items[0];
+  const measured = camera.ai_enabled && camera.tracking?.avg_speed_kmh != null;
+  const speedSource = !camera.ai_enabled ? "simulated" : measured ? "measured by AI tracking" : "last known value";
 
   const facts = [
     { icon: <MapPin />, title: camera.road, body: `${camera.area} · ${camera.zone}` },
     { icon: <Clock />, title: "Last updated", body: `${formatDateTime(camera.last_heartbeat_at)} (${timeAgo(camera.last_heartbeat_at)})` },
-    { icon: <Gauge />, title: `Traffic: ${TRAFFIC[camera.traffic_level].label}`, body: `Average speed ${camera.avg_speed_kmh} km/h` },
+    { icon: <Gauge />, title: `Traffic: ${TRAFFIC[camera.traffic_level].label}`, body: `Average speed ${camera.avg_speed_kmh} km/h (${speedSource})` },
   ];
 
   return (
@@ -44,15 +46,17 @@ async function CameraDetailPageContent(props: PageProps<"/police/cameras/[id]">)
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:items-start">
         <section className="flex flex-col gap-2">
           <LiveCameraFeed
+            cameraId={camera.id}
             streamUrl={camera.stream_url}
+            aiEnabled={camera.ai_enabled}
             label={camera.code}
             stamp={`${camera.code} · ${formatClock(camera.last_heartbeat_at)}`}
             offline={!live}
             detection={latest ? `${latest.vehicle_type} · ${Math.round(latest.confidence * 100)}%` : undefined}
           />
           <p className="text-xs text-muted-foreground">
-            {camera.stream_url
-              ? "Live AI view: red boxes are vehicles flagged as parked."
+            {camera.ai_enabled
+              ? "Live AI view: every vehicle keeps its number while it is in view. Red boxes are vehicles flagged as parked."
               : `Simulated camera, no AI detector connected (${camera.zone}).`}
           </p>
         </section>

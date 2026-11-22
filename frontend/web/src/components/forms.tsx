@@ -1,17 +1,19 @@
 "use client";
 
-import { CircleAlert, CircleCheck } from "lucide-react";
-import { createContext, use, useActionState, useEffect, useRef, type ReactNode } from "react";
+import { CircleAlert, CircleCheck, Eye, EyeOff } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { createContext, use, useActionState, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldDescription, FieldError as UiFieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
+import { MESSAGES } from "@/lib/errors";
 import type { FormState } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +22,33 @@ import { DialogContext } from "./interactive";
 type Action = (state: FormState, form: FormData) => Promise<FormState>;
 
 const FormContext = createContext<FormState>({});
+const NavigatingContext = createContext(false);
+
+/** Framework control flow (redirect / notFound) travels as errors with a NEXT_ digest; let it pass. */
+function isFrameworkSignal(error: unknown): boolean {
+  const digest = (error as { digest?: unknown } | null)?.digest;
+  return typeof digest === "string" && digest.startsWith("NEXT_");
+}
+
+/**
+ * Calls a Server Action and turns a thrown failure (lost connection, server crash) into form state.
+ * Without this, a single network blip makes useActionState throw and the form stops responding.
+ */
+export function useSafeAction(action: Action): Action {
+  return useCallback(
+    async (state: FormState, form: FormData) => {
+      try {
+        return await action(state, form);
+      } catch (error) {
+        if (isFrameworkSignal(error)) throw error;
+        console.error("[form] action failed", error);
+        const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+        return { ok: false, message: offline || error instanceof TypeError ? MESSAGES.network : MESSAGES.server };
+      }
+    },
+    [action],
+  );
+}
 
 /** A <form> bound to a Server Action; field components read its returned errors and values. */
 export function ActionForm({
@@ -35,21 +64,41 @@ export function ActionForm({
   onSuccess?: () => void;
   id?: string;
 }) {
-  const [state, formAction] = useActionState(action, {});
+  const [state, formAction, pending] = useActionState(useSafeAction(action), {});
   const dialog = use(DialogContext);
+  const router = useRouter();
   const handled = useRef<FormState | null>(null);
+  // After a successful sign-in the form stays locked until the next page has loaded.
+  const navigating = Boolean(state.ok && state.redirectTo);
   useEffect(() => {
     if (state.ok && handled.current !== state) {
       handled.current = state;
+      if (state.redirectTo) {
+        router.replace(state.redirectTo);
+        router.refresh();
+        return;
+      }
       onSuccess?.();
       dialog?.close();
     }
-  }, [state, onSuccess, dialog]);
+  }, [state, onSuccess, dialog, router]);
   return (
     <FormContext value={state}>
-      <form action={formAction} className={className} id={id} noValidate>
-        {children}
-      </form>
+      <NavigatingContext value={navigating}>
+        <form
+          action={formAction}
+          className={className}
+          id={id}
+          noValidate
+          aria-busy={pending || navigating}
+          onSubmit={(event) => {
+            // A second press while the first request is still running is ignored, never sent twice.
+            if (pending || navigating) event.preventDefault();
+          }}
+        >
+          {children}
+        </form>
+      </NavigatingContext>
     </FormContext>
   );
 }
@@ -139,13 +188,15 @@ export function TextField({
   step?: number | string;
 }) {
   const { error, value } = useFieldState(name, defaultValue);
+  const [revealed, setRevealed] = useState(false);
   const id = `f-${name}`;
-  const inputKey = type === "password" ? undefined : value;
+  const isPassword = type === "password";
+  const inputKey = isPassword ? undefined : value;
   const inputProps = {
     id,
     name,
-    type,
-    defaultValue: type === "password" ? undefined : value,
+    type: isPassword && revealed ? "text" : type,
+    defaultValue: isPassword ? undefined : value,
     placeholder,
     autoComplete,
     inputMode,
@@ -161,10 +212,24 @@ export function TextField({
       <FieldLabel htmlFor={id}>
         <FieldLabelText label={label} required={required} />
       </FieldLabel>
-      {icon ? (
+      {icon || isPassword ? (
         <InputGroup>
           <InputGroupInput key={inputKey} {...inputProps} />
-          <InputGroupAddon className="pl-3">{icon}</InputGroupAddon>
+          {icon && <InputGroupAddon className="pl-3">{icon}</InputGroupAddon>}
+          {isPassword && (
+            <InputGroupAddon align="inline-end">
+              <InputGroupButton
+                size="icon-xs"
+                onClick={() => setRevealed((v) => !v)}
+                aria-label={revealed ? "Hide password" : "Show password"}
+                aria-pressed={revealed}
+                aria-controls={id}
+                title={revealed ? "Hide password" : "Show password"}
+              >
+                {revealed ? <EyeOff /> : <Eye />}
+              </InputGroupButton>
+            </InputGroupAddon>
+          )}
         </InputGroup>
       ) : (
         <Input key={inputKey} {...inputProps} />
@@ -299,7 +364,9 @@ export function SubmitButton({
   value?: string;
   small?: boolean;
 }) {
-  const { pending } = useFormStatus();
+  const { pending: submitting } = useFormStatus();
+  const navigating = use(NavigatingContext);
+  const pending = submitting || navigating;
   return (
     <Button
       type="submit"

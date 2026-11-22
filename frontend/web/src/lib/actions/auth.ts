@@ -2,7 +2,7 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { refresh } from "next/cache";
+import { refresh, revalidatePath } from "next/cache";
 
 import { apiRequest } from "../api";
 import { ACCESS_COOKIE, REFRESH_COOKIE, ROLE_HOME, writeSessionCookies } from "../session";
@@ -10,7 +10,7 @@ import type { AuthResponse, CodeSent, FormState, Role } from "../types";
 import { failure, flash, safeNext, text } from "./utils";
 
 const AREA_PREFIX: Record<Role, string[]> = {
-  public: ["/home", "/explore", "/parking", "/my-parking", "/notifications", "/profile"],
+  public: ["/home", "/explore", "/parking", "/my-parking", "/notifications", "/profile", "/suggestions"],
   police: ["/police"],
   admin: ["/admin"],
 };
@@ -18,23 +18,34 @@ const AREA_PREFIX: Record<Role, string[]> = {
 async function startSession(response: AuthResponse, next: string | null): Promise<string> {
   const store = await cookies();
   if (response.tokens) writeSessionCookies(store, response.tokens);
+  // Drop every page the browser cached for the previous visitor, so the new session never sees stale screens.
+  revalidatePath("/", "layout");
   const role = response.user.role;
   return next && AREA_PREFIX[role].some((p) => next.startsWith(p)) ? next : ROLE_HOME[role];
 }
 
 export async function loginAction(_: FormState, form: FormData): Promise<FormState> {
   const identifier = text(form, "identifier");
-  let destination: string;
+  const password = String(form.get("password") ?? "");
+  if (!identifier || !password) {
+    return {
+      ok: false,
+      message: "Enter your phone, email or badge number and your password.",
+      fields: {
+        ...(identifier ? {} : { identifier: "This field is required." }),
+        ...(password ? {} : { password: "This field is required." }),
+      },
+      values: { identifier },
+    };
+  }
   try {
-    const response = await apiRequest<AuthResponse>("/auth/login", {
-      method: "POST",
-      json: { identifier, password: String(form.get("password") ?? "") },
-    });
-    destination = await startSession(response, safeNext(form.get("next")));
+    const response = await apiRequest<AuthResponse>("/auth/login", { method: "POST", json: { identifier, password } });
+    // The browser navigates itself: a server-side redirect here left the form unusable after the first
+    // sign-in when the client router reused pages cached for the previous session.
+    return { ok: true, redirectTo: await startSession(response, safeNext(form.get("next"))), values: { identifier } };
   } catch (error) {
     return failure(error, { identifier });
   }
-  redirect(destination);
 }
 
 export async function demoLoginAction(form: FormData): Promise<void> {
@@ -70,17 +81,15 @@ export async function requestOtpAction(_: FormState, form: FormData): Promise<Fo
 
 export async function verifyOtpAction(_: FormState, form: FormData): Promise<FormState> {
   const phone = text(form, "phone");
-  let destination: string;
   try {
     const response = await apiRequest<AuthResponse>("/auth/otp/verify", {
       method: "POST",
       json: { phone, code: text(form, "code") },
     });
-    destination = await startSession(response, safeNext(form.get("next")));
+    return { ok: true, redirectTo: await startSession(response, safeNext(form.get("next"))) };
   } catch (error) {
-    return { ...failure(error, { phone, step: "verify" }) };
+    return failure(error, { phone, step: "verify" });
   }
-  redirect(destination);
 }
 
 export async function registerAction(_: FormState, form: FormData): Promise<FormState> {
@@ -140,6 +149,7 @@ export async function logoutAction(): Promise<void> {
   }
   store.delete(ACCESS_COOKIE);
   store.delete(REFRESH_COOKIE);
+  revalidatePath("/", "layout");
   await flash("You have been signed out.", "info");
   redirect("/login");
 }

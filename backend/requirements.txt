@@ -21,3 +21,4 @@ filetype>=1.2.0
 pillow>=11.0.0
 httpx>=0.28.0
 orjson>=3.10.12
+python-socketio>=5.11.4

@@ -6,13 +6,16 @@ Smart parking and illegal-parking detection for Kathmandu Valley.
 | --- | --- | --- | --- |
 | Backend API | `backend/` | FastAPI + PostgreSQL + Redis, alerts, users, cameras | http://localhost:8000 |
 | Web app | `frontend/web/` | Next.js app for public users, traffic police and admins | http://localhost:3000 |
-| Mobile app | `frontend/mobile/` | Expo (React Native) app for Android and iPhone | Expo Go on your phone |
-| AI detector | `park-track/` | YOLO + ByteTrack; finds parked vehicles in a camera feed and raises alerts | live video on port 8090 |
+| Mobile app | `frontend/mobile/` | Expo (React Native) app for public users and traffic police | Expo Go on your phone |
+| AI detector | `park-track/` | YOLO + ByteTrack; tracks every vehicle in a camera feed, measures traffic and raises parked-vehicle alerts | live video on port 8090 |
 
 ```
- phone camera / CCTV ──video──▶ AI detector ──alerts + photos──▶ Backend ◀── Web app / Mobile app
-                                    └──────── live AI video (port 8090) ──────────▲
+ phone camera / CCTV ──video──▶ AI detector ──live tracking, alerts + photos──▶ Backend ◀── Web app / Mobile app
+                                    └──────────── live AI video (port 8090) ────────────────▲
 ```
+
+Administrators use the web app only. The mobile app has no administrator screens and the API refuses
+administrator sign-ins from it.
 
 ---
 
@@ -52,8 +55,8 @@ cd ..
 ```
 
 In `backend\.env`, replace the three `change-me` secrets. The commands that generate them are written
-next to each one in the file. While using real cameras, also set `SIMULATE_DETECTIONS=false`, or the
-demo simulator keeps inventing alerts.
+next to each one in the file. `SIMULATE_DETECTIONS=true` keeps the demo cameras alive; a camera that
+has a real AI detector is never simulated, so both can run side by side.
 
 > macOS/Linux: use `cp` instead of `copy`, and `.venv/bin/python` instead of `.\.venv\Scripts\python`.
 
@@ -84,8 +87,17 @@ cd park-track
 $env:INGEST_API_KEY = ((Get-Content ..\backend\.env | Select-String '^INGEST_API_KEY=') -split '=',2)[1]
 .\.venv\Scripts\python main.py --source http://<PHONE-IP>:8080/video --camera-code PHONE-01 --name "My phone" --lat 27.7056 --lng 85.3206
 ```
-To try it without a camera, use the sample video instead:
-`--source video2.mp4 --realtime --park-seconds 10 --camera-code DEMO-01`.
+To try it without a camera, use the sample video and attach the AI to the existing camera `CAM-014`
+(one line):
+
+```powershell
+.\.venv\Scripts\python main.py --source video2.mp4 --realtime --park-seconds 10 --camera-code CAM-014 --road-quad "265,475;690,593;890,387;575,345" --road-width-m 7 --road-length-m 12
+```
+
+The three `--road-…` options calibrate speed for that video (approximate: they assume 3.5 m lanes and
+6 m between lane dashes). Without them vehicles are still tracked and counted, but average speed and
+the traffic level are not measured. See [park-track/README.md](park-track/README.md) for calibrating
+your own camera.
 
 **Terminal 4: Mobile app**
 ```powershell
@@ -101,12 +113,24 @@ All demo accounts use the password `ParkMandu@2026`.
 | Role | Sign in with |
 | --- | --- |
 | Traffic police (sees cameras and alerts) | `TP-2841` |
-| Administrator | `nabin.shrestha@parkmandu.test` |
+| Administrator (web only) | `nabin.shrestha@parkmandu.test` |
 | Public user | `sita.sharma@example.com` |
 
-As police, open **Cameras** and choose your camera (for example `PHONE-01`) to watch the live AI video.
-Red boxes are vehicles flagged as parked. Each parked vehicle creates an alert, with a photo, under
-**Alerts**.
+As police, open **Cameras** and choose your camera (for example `CAM-014` or `PHONE-01`) to watch the
+live AI video. Every vehicle keeps its number while it is in view, and the page lists the tracked
+vehicles, counts, average speed and traffic level, refreshed every two seconds. Red boxes are vehicles
+the **Parking Availability Bridge** judged PARKED: they stood still while other traffic drove past
+them (or stood alone for two minutes). Vehicles waiting in a queue are never PARKED. A PARKED vehicle
+becomes an alert, with a photo, under **Alerts** only while the camera's traffic is flowing normally;
+during a jam, or while the camera's traffic has not been measured recently, the alert is held back and
+raised once traffic is normal again. The same camera appears under **Road conditions** on the dashboard
+marked "AI tracking".
+
+> Traffic is measured from vehicle speed, so a police camera needs its road calibrated
+> (`--road-quad`, `--road-width-m`, `--road-length-m` on `camera-bridge/bridge.py`). Without
+> calibration its traffic stays unknown and its parking alerts are held back.
+
+As administrator, **Issue reports** lists the problems public users report about parking locations.
 
 ---
 
@@ -137,7 +161,8 @@ shows as `--source`.
 - If the phone reconnects to Wi-Fi, its address can change. Check the camera app and update `--source`.
 - When Windows asks whether to let Python through the firewall, click **Allow**. Without that, the web
   and mobile apps cannot load the live video from port 8090.
-- For a quicker demo, add `--park-seconds 10`. The default is 30 seconds of standing still.
+- For a quicker demo, add `--park-seconds 10`. That is the minimum standing time before a vehicle can be
+  judged PARKED (default 30 s); other traffic must also have driven past it.
 
 ### CCTV cameras instead of a phone
 Use the camera's RTSP address, for example Hikvision
@@ -177,9 +202,15 @@ while you use Expo Go.
 | Camera page says "Waiting for video from the AI detector…" | Detector not running, or its `--source` is wrong. Open the phone's address in a browser to test it. Watch Terminal 3 for `Connected to …`. |
 | Camera shows **Offline** | The detector stopped. Cameras go offline about 2 minutes after the last heartbeat. |
 | Detector says `Backend rejected the API key` | `INGEST_API_KEY` must match `backend\.env`. Re-run the `$env:INGEST_API_KEY = ...` line. |
-| Fake "bus stop" alerts appear | Set `SIMULATE_DETECTIONS=false` in `backend\.env` and restart Terminal 1. |
+| Fake alerts appear on other cameras | Those are the demo cameras. Set `SIMULATE_DETECTIONS=false` in `backend\.env` and restart Terminal 1 to switch the demo off (demo cameras then go offline). |
+| Camera page shows counts but "Camera not calibrated for speed" | Add `--road-quad`, `--road-width-m` and `--road-length-m` (see `park-track/README.md`). |
+| A parked vehicle was logged by the detector but no alert appeared | The detector prints `Backend ignored parked …`: the detection confidence was under the backend's 60% alert threshold. |
+| Administrator cannot sign in on the phone | Intended: administrators use the web app at http://localhost:3000. |
 | Detector is slow (under 3 frames/s) | Lower the camera resolution, or add `--window 2.5`. An NVIDIA GPU with CUDA PyTorch is much faster. |
 | Mobile app cannot reach the API | Same Wi-Fi, and allow port 8000 through the firewall. |
+
+Paid parking (eSewa and Khalti): [PAYMENT_GATEWAY_DOCUMENTATION.md](PAYMENT_GATEWAY_DOCUMENTATION.md).
+In-app directions use the routing service set by `ROUTING_BASE_URL` in `backend/.env` (OSRM).
 
 Detailed docs: [backend/README.md](backend/README.md) · [frontend/mobile/README.md](frontend/mobile/README.md) ·
 [park-track/README.md](park-track/README.md)

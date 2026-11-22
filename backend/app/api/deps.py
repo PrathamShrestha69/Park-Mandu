@@ -10,6 +10,7 @@ from app.core.errors import AppError, forbidden
 from app.core.redis import redis_client, revoked_session_key
 from app.core.security import (
     ACCESS_COOKIE,
+    CLIENT_TYPE_HEADER,
     CSRF_COOKIE,
     CSRF_HEADER,
     constant_time_equals,
@@ -94,7 +95,18 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 OptionalUser = Annotated[User | None, Depends(get_optional_user)]
 PublicUser = Annotated[User, Depends(require_roles(UserRole.PUBLIC))]
 PoliceUser = Annotated[User, Depends(require_roles(UserRole.POLICE, UserRole.ADMIN))]
-AdminUser = Annotated[User, Depends(require_roles(UserRole.ADMIN))]
+
+ADMIN_WEB_ONLY = "Administrator tools are only available in the Park Mandu web dashboard."
+
+
+async def require_web_admin(request: Request, user: Annotated[User, Depends(require_roles(UserRole.ADMIN))]) -> User:
+    """Administration runs in the web dashboard only; the mobile app is for the public and traffic police."""
+    if request.headers.get(CLIENT_TYPE_HEADER, "").lower() == "mobile":
+        raise AppError(status.HTTP_403_FORBIDDEN, "admin_web_only", ADMIN_WEB_ONLY)
+    return user
+
+
+AdminUser = Annotated[User, Depends(require_web_admin)]
 
 
 def client_ip(request: Request) -> str | None:

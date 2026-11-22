@@ -1,5 +1,5 @@
 import { Link } from "expo-router";
-import { ChartColumn, KeyRound, Lock, Phone, Siren, SquareParking, User } from "lucide-react-native";
+import { KeyRound, Lock, Phone, Siren, SquareParking, User } from "lucide-react-native";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -13,7 +13,6 @@ import type { AuthResponse, CodeSent } from "@/lib/types";
 const DEMO = [
   { identifier: "sita.sharma@example.com", role: "Public user / Landowner", detail: "Sita Sharma", icon: SquareParking },
   { identifier: "TP-2841", role: "Traffic police", detail: "Inspector Rajendra Karki", icon: Siren },
-  { identifier: "nabin.shrestha@parkmandu.test", role: "Government administrator", detail: "Nabin Shrestha", icon: ChartColumn },
 ];
 
 export default function Login() {
@@ -115,6 +114,7 @@ export default function Login() {
         </View>
       )}
 
+      <Text style={styles.footer}>Administrators sign in on the Park Mandu web dashboard.</Text>
       <Text style={styles.footer}>
         New to Park Mandu?{" "}
         <Link href="/register" style={{ color: colors.blue700, fontFamily: fonts.bold }}>

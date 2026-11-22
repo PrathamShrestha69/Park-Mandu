@@ -2,7 +2,7 @@ from sqlalchemy import Select, case, select
 from sqlalchemy.orm import selectinload
 
 from app.models.enums import AlertSeverity
-from app.models.monitoring import Alert, Incident, IncidentNote
+from app.models.monitoring import Alert, AlertDispatch, Incident, IncidentNote
 from app.schemas.monitoring import VIOLATION_LABELS, AlertOut, IncidentDetail, IncidentSummary
 
 SEVERITY_ORDER = case(
@@ -17,6 +17,7 @@ def alert_query() -> Select[tuple[Alert]]:
         selectinload(Alert.camera),
         selectinload(Alert.assigned_officer),
         selectinload(Alert.incident),
+        selectinload(Alert.dispatch).selectinload(AlertDispatch.officer),
     )
 
 
@@ -26,6 +27,7 @@ def incident_query() -> Select[tuple[Incident]]:
         selectinload(Incident.alert).selectinload(Alert.camera),
         selectinload(Incident.alert).selectinload(Alert.assigned_officer),
         selectinload(Incident.alert).selectinload(Alert.incident),
+        selectinload(Incident.alert).selectinload(Alert.dispatch).selectinload(AlertDispatch.officer),
         selectinload(Incident.notes).selectinload(IncidentNote.author),
     )
 
@@ -35,6 +37,7 @@ def alert_to_out(alert: Alert) -> AlertOut:
 
 
 def alert_dict(alert: Alert) -> dict[str, object]:
+    sent = alert.dispatch
     return {
         "id": alert.id,
         "code": alert.code,
@@ -60,6 +63,10 @@ def alert_dict(alert: Alert) -> dict[str, object]:
         "closed_at": alert.closed_at,
         "dismiss_reason": alert.dismiss_reason,
         "has_snapshot": alert.snapshot_key is not None,
+        "dispatch_status": sent.status.value if sent else None,
+        "dispatch_officer_id": sent.officer_id if sent else None,
+        "dispatch_officer_name": sent.officer.full_name if sent and sent.officer else None,
+        "dispatch_distance_m": round(sent.distance_m) if sent and sent.distance_m is not None else None,
     }
 
 

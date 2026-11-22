@@ -8,11 +8,14 @@ import {
   LogOut,
   Map,
   Menu,
+  MessageSquareWarning,
+  MessagesSquare,
   Plus,
   Search,
   ShieldCheck,
   Siren,
   SquareParking,
+  Ticket,
   TriangleAlert,
   User,
   UserPlus,
@@ -33,6 +36,7 @@ import { cn } from "@/lib/utils";
 
 import { Brand } from "./common";
 import { NavLink } from "./interactive";
+import { LiveUpdates, OfficerLocation } from "./live-updates";
 
 interface NavItem {
   href: string;
@@ -40,6 +44,8 @@ interface NavItem {
   icon: ReactNode;
   exact?: boolean;
   badge?: "notifications";
+  /** Desktop sidebar only; the phone tab bar keeps five tabs. */
+  sideOnly?: boolean;
 }
 
 const NAV: Record<Role, NavItem[]> = {
@@ -48,6 +54,8 @@ const NAV: Record<Role, NavItem[]> = {
     { href: "/explore", label: "Map", icon: <Map /> },
     { href: "/my-parking", label: "My Parking", icon: <SquareParking /> },
     { href: "/notifications", label: "Notifications", icon: <Bell />, badge: "notifications" },
+    { href: "/bookings", label: "My bookings", icon: <Ticket />, sideOnly: true },
+    { href: "/suggestions", label: "Suggestions", icon: <MessagesSquare />, sideOnly: true },
     { href: "/profile", label: "Profile", icon: <User /> },
   ],
   police: [
@@ -150,6 +158,12 @@ async function TopBarUser() {
   );
 }
 
+/** Shares the officer's position while on duty, for nearest-officer dispatch. */
+async function DutyLocation() {
+  const user = await getViewer().catch(() => null);
+  return <OfficerLocation onDuty={Boolean(user?.on_duty)} />;
+}
+
 /** The sidebar's main call to action, like "New Project" in a project tool. */
 function PrimaryAction({ role }: { role: Role }) {
   if (role === "public")
@@ -209,7 +223,17 @@ function NavItems({ items, variant, plain }: { items: NavItem[]; variant: "side"
 
 export function AppShell({ role, children }: { role: Role; children: ReactNode }) {
   const items = NAV[role];
-  const sideItems: NavItem[] = role === "admin" ? [...items, { href: "/admin/audit", label: "Audit log", icon: <ClipboardList /> }] : items;
+  const sideItems: NavItem[] =
+    role === "admin"
+      ? [
+          ...items.slice(0, 2),
+          { href: "/admin/issues", label: "Issue reports", icon: <MessageSquareWarning /> },
+          { href: "/admin/suggestions", label: "Suggestions", icon: <MessagesSquare /> },
+          ...items.slice(2),
+          { href: "/admin/audit", label: "Audit log", icon: <ClipboardList /> },
+        ]
+      : items;
+  const bottomItems = items.filter((i) => !i.sideOnly);
   const home = items[0].href;
   const search = SEARCH[role];
   return (
@@ -270,7 +294,14 @@ export function AppShell({ role, children }: { role: Role; children: ReactNode }
         </header>
 
         <main id="main" className="flex-1 px-4 pt-6 pb-28 md:px-8 lg:pt-8 lg:pb-16">
-          <div className="mx-auto w-full max-w-6xl">{children}</div>
+          <div className="mx-auto w-full max-w-6xl">
+            <LiveUpdates role={role}>{children}</LiveUpdates>
+          </div>
+          {role === "police" && (
+            <Suspense fallback={null}>
+              <DutyLocation />
+            </Suspense>
+          )}
         </main>
       </div>
 
@@ -278,8 +309,8 @@ export function AppShell({ role, children }: { role: Role; children: ReactNode }
         className="fixed inset-x-0 bottom-0 z-50 flex border-t bg-card/95 px-2 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
         aria-label="Main navigation"
       >
-        <Suspense fallback={<NavItems items={items} variant="bottom" plain />}>
-          <NavItems items={items} variant="bottom" />
+        <Suspense fallback={<NavItems items={bottomItems} variant="bottom" plain />}>
+          <NavItems items={bottomItems} variant="bottom" />
         </Suspense>
       </nav>
     </div>

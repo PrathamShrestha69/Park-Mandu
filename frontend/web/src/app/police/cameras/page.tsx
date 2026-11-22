@@ -88,6 +88,11 @@ async function CamerasPageContent(props: PageProps<"/police/cameras">) {
                 <small className="mt-1 block text-xs text-muted-foreground">
                   {formatClock(camera.last_heartbeat_at)} · {camera.active_violations} active violation{camera.active_violations === 1 ? "" : "s"}
                 </small>
+                {camera.ai_enabled && (
+                  <small className="mt-1 block text-xs font-medium text-info-ink">
+                    AI tracking{camera.tracking ? ` · ${camera.tracking.vehicle_count} vehicle${camera.tracking.vehicle_count === 1 ? "" : "s"} in view` : " · not reporting"}
+                  </small>
+                )}
               </div>
             </Link>
           ))}

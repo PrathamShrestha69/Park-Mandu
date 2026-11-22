@@ -140,15 +140,23 @@ async function PoliceDashboardPageContent(props: PageProps<"/police">) {
           <SectionTitle title="Road conditions" action={<TextLink href="/police/alerts">View alerts</TextLink>} />
           <ul className={cn(surface, "px-4")}>
             {dashboard.road_conditions.map((road) => (
-              <li className="flex items-center gap-3 border-b py-3.5 last:border-b-0" key={road.camera_code}>
-                <span className={cn("size-2.5 shrink-0 rounded-full ring-4", CONDITION[road.traffic_level])} aria-hidden />
-                <div className="min-w-0 flex-1">
-                  <strong className="block truncate text-sm font-medium">{road.road}</strong>
-                  <small className="text-xs text-muted-foreground">
-                    {road.avg_speed_kmh} km/h avg · <span className="font-mono">{road.camera_code}</span>
-                  </small>
-                </div>
-                <Badge tone={TRAFFIC[road.traffic_level].tone}>{TRAFFIC[road.traffic_level].label}</Badge>
+              <li key={road.camera_code} className="border-b last:border-b-0">
+                <Link href={`/police/cameras/${road.camera_id}`} className="flex items-center gap-3 py-3.5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
+                  <span className={cn("size-2.5 shrink-0 rounded-full ring-4", CONDITION[road.traffic_level])} aria-hidden />
+                  <div className="min-w-0 flex-1">
+                    <strong className="block truncate text-sm font-medium">{road.road}</strong>
+                    <small className="text-xs text-muted-foreground">
+                      {road.avg_speed_kmh} km/h avg · <span className="font-mono">{road.camera_code}</span>
+                      {road.source === "ai" && (
+                        <span className="font-medium text-info-ink">
+                          {" "}
+                          · AI tracking{road.vehicle_count !== null ? `, ${road.vehicle_count} in view` : ""}
+                        </span>
+                      )}
+                    </small>
+                  </div>
+                  <Badge tone={TRAFFIC[road.traffic_level].tone}>{TRAFFIC[road.traffic_level].label}</Badge>
+                </Link>
               </li>
             ))}
           </ul>

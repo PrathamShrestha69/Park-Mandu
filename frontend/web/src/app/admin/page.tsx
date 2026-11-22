@@ -1,4 +1,4 @@
-import { Cctv, CircleCheck, CircleX, Clock, FileText, SquareParking, TriangleAlert, Users } from "lucide-react";
+import { Cctv, ChevronRight, CircleCheck, CircleX, Clock, FileText, MessageSquareWarning, SquareParking, TriangleAlert, Users } from "lucide-react";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
@@ -67,6 +67,24 @@ async function AdminDashboardContent() {
         <StatCard href="/admin/map?layers=incidents" icon={<CircleCheck />} tone="green" label="Resolved incidents" value={o.resolved_incidents} note="Closed by traffic police" />
         <StatCard href="/admin/users" icon={<Users />} tone="gray" label="Registered users" value={o.registered_users} note="Public, police and officials" />
       </div>
+
+      {o.open_issue_reports > 0 && (
+        <Link
+          href="/admin/issues?status=open"
+          className="group mt-3 flex items-center gap-4 rounded-xl border border-warning/40 bg-warning/[0.12] p-4 transition-colors hover:bg-warning/20 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        >
+          <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-warning/25 text-warning-ink">
+            <MessageSquareWarning className="size-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <strong className="block text-sm font-semibold">
+              {o.open_issue_reports} issue report{o.open_issue_reports === 1 ? "" : "s"} from the public waiting for review
+            </strong>
+            <span className="block text-xs text-muted-foreground">Problems reported about parking locations</span>
+          </div>
+          <ChevronRight className="size-4 shrink-0 transition-transform group-hover:translate-x-0.5" />
+        </Link>
+      )}
 
       <div className="mt-6 grid gap-3 lg:grid-cols-2">
         <ChartCard title="Applications over time" meta="Last 6 months">

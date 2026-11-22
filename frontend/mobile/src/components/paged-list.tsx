@@ -6,6 +6,7 @@ import type { Query } from "@/lib/api";
 import { usePaged } from "@/lib/queries";
 import { usePalette } from "@/lib/theme";
 
+import { useBottomInset } from "./tab-options";
 import { ErrorView, Loading, Txt } from "./ui";
 
 /**
@@ -30,6 +31,7 @@ export function PagedList<T extends { id: string }>({
   refetchInterval?: number;
 }) {
   const p = usePalette();
+  const bottomInset = useBottomInset();
   const list = usePaged<T>(path, query, { size, refetchInterval });
 
   return (
@@ -52,7 +54,8 @@ export function PagedList<T extends { id: string }>({
         onEndReachedThreshold={0.4}
         onEndReached={() => list.hasNextPage && !list.isFetchingNextPage && list.fetchNextPage()}
         refreshControl={<RefreshControl refreshing={list.isRefetching && !list.isFetchingNextPage} onRefresh={() => void list.refetch()} tintColor={p.primary} />}
-        contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: 16, paddingBottom: 32 + bottomInset }}
         keyboardShouldPersistTaps="handled"
       />
     </SafeAreaView>

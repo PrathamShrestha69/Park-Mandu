@@ -65,7 +65,7 @@ bundlers cannot emit, so `scripts/copy-maplibre-worker.mjs` copies it to `public
 | Everyone | `/` splash · `/login` (password or SMS code) · `/register` · `/forgot-password` · `/reset-password` |
 | Public / landowner | `/home` · `/explore` · `/parking/[id]` · `/parking/[id]/report` · `/my-parking` · `/my-parking/[id]` · `/my-parking/[id]/edit/[step]` (location → property → owner → documents → review) · `/my-parking/[id]/submitted` · `/notifications` · `/profile` |
 | Traffic police | `/police` · `/police/cameras` · `/police/cameras/[id]` · `/police/alerts` · `/police/alerts/[id]` · `/police/incidents` · `/police/incidents/[id]` · `/police/profile` |
-| Administrator | `/admin` · `/admin/applications` · `/admin/applications/[id]` · `/admin/map` · `/admin/users` · `/admin/users/new` · `/admin/more` · `/admin/audit` |
+| Administrator | `/admin` · `/admin/applications` · `/admin/applications/[id]` · `/admin/map` · `/admin/users` · `/admin/users/new` · `/admin/issues` · `/admin/more` · `/admin/audit` |
 
 ## Environment
 

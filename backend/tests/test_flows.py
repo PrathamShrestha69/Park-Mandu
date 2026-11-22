@@ -17,8 +17,8 @@ BASE = os.environ.get("API_BASE_URL", "http://localhost:8000") + "/api/v1"
 PASSWORD = "ParkMandu@2026"
 
 
-def token_client(identifier: str) -> httpx.Client:
-    client = httpx.Client(base_url=BASE, timeout=20, headers={"X-Client-Type": "mobile"})
+def token_client(identifier: str, client_type: str = "mobile") -> httpx.Client:
+    client = httpx.Client(base_url=BASE, timeout=20, headers={"X-Client-Type": client_type})
     res = client.post("/auth/login", json={"identifier": identifier, "password": PASSWORD})
     assert res.status_code == 200, res.text
     client.headers["Authorization"] = f"Bearer {res.json()['tokens']['access_token']}"
@@ -33,7 +33,8 @@ def landowner() -> httpx.Client:
 
 @pytest.fixture(scope="module")
 def admin() -> httpx.Client:
-    return token_client("nabin.shrestha@parkmandu.test")
+    # Administrators only exist on the web; the Next.js server calls the API as "web-server".
+    return token_client("nabin.shrestha@parkmandu.test", "web-server")
 
 
 @pytest.fixture(scope="module")
@@ -184,6 +185,7 @@ def test_full_application_lifecycle(landowner: httpx.Client, admin: httpx.Client
                 "land_size_sqm": 500,
                 "capacity": 15,
                 "parking_type": "open_air",
+                "vehicle_types": ["car", "bike"],
                 "opens_at": "07:00",
                 "closes_at": "21:00",
                 "available_days": "every_day",
@@ -264,7 +266,7 @@ def test_role_boundaries(landowner: httpx.Client, police: httpx.Client) -> None:
 def test_alert_to_incident_to_resolution(police: httpx.Client) -> None:
     dashboard = police.get("/police/dashboard").json()
     assert dashboard["officer"]["badge_number"] == "TP-2841"
-    assert dashboard["cameras"]["total"] == 22
+    assert dashboard["cameras"]["total"] >= 22  # seeded cameras plus any registered by detectors
 
     active = police.get("/alerts", params={"status": "active", "sort": "severity", "size": 50}).json()
     assert active["items"], "seed data should include active alerts"
@@ -302,7 +304,7 @@ def test_ingest_requires_api_key_and_queues(police: httpx.Client) -> None:
 
 def test_admin_stats_and_map(admin: httpx.Client) -> None:
     stats = admin.get("/admin/stats").json()
-    assert stats["overview"]["cameras_total"] == 22
+    assert stats["overview"]["cameras_total"] >= 22  # seeded cameras plus any registered by detectors
     assert len(stats["charts"]["applications_over_time"]) == 6
     assert len(stats["charts"]["cctv_activity"]) == 7
     layers = admin.get("/admin/map", params=[("layers", "cameras")]).json()
@@ -346,3 +348,152 @@ def test_ai_detector_heartbeat_registers_camera_and_snapshot_is_served(police: h
     assert alert["has_snapshot"] is True
     image = police.get(f"/files/alerts/{alert['id']}/snapshot")
     assert image.status_code == 200 and image.headers["content-type"] == "image/jpeg"
+
+
+# --------------------------------------------------------------------------- admin is web-only
+
+
+def test_admin_cannot_use_the_mobile_app(admin: httpx.Client, police: httpx.Client) -> None:
+    mobile = {"X-Client-Type": "mobile"}
+    login = httpx.post(
+        f"{BASE}/auth/login",
+        json={"identifier": "nabin.shrestha@parkmandu.test", "password": PASSWORD},
+        headers=mobile,
+    )
+    assert login.status_code == 403 and login.json()["error"]["code"] == "admin_web_only"
+    # A valid administrator token is still refused when it is presented by the mobile client.
+    refused = admin.get("/admin/stats", headers=mobile)
+    assert refused.status_code == 403 and refused.json()["error"]["code"] == "admin_web_only"
+    assert admin.get("/admin/stats").status_code == 200
+    # Other roles keep signing in on mobile.
+    assert police.get("/police/dashboard").status_code == 200
+
+
+# --------------------------------------------------------------------------- issue reports
+
+
+def test_public_issue_report_reaches_admin_and_status_flows_back(landowner: httpx.Client, admin: httpx.Client) -> None:
+    parking = httpx.get(f"{BASE}/parkings", params={"size": 1}).json()["items"][0]
+    before = admin.get("/admin/issues/counts").json()
+    marker = uuid.uuid4().hex[:10]
+    body = {"category": "overcharging", "description": f"Charged double the posted rate ({marker})."}
+    created = landowner.post(f"/parkings/{parking['id']}/reports", json=body)
+    assert created.status_code == 201 and created.json()["status"] == "open"
+
+    after = admin.get("/admin/issues/counts").json()
+    assert after["open"] == before["open"] + 1 and after["total"] == before["total"] + 1
+    assert admin.get("/admin/stats").json()["overview"]["open_issue_reports"] == after["open"]
+
+    listed = admin.get("/admin/issues", params={"q": marker, "status": "open"}).json()
+    assert listed["total"] == 1
+    issue = listed["items"][0]
+    assert issue["id"] == created.json()["id"] and issue["category"] == "overcharging"
+    assert issue["parking"]["name"] == parking["name"] and issue["parking"]["latitude"] == parking["latitude"]
+    assert issue["reporter"]["full_name"] == "Sita Sharma" and issue["created_at"]
+    assert admin.get("/admin/issues", params={"parking_id": parking["id"], "q": marker}).json()["total"] == 1
+
+    # Reports are an administrator tool.
+    assert landowner.get("/admin/issues").status_code == 403
+
+    updated = admin.patch(f"/admin/issues/{issue['id']}", json={"status": "reviewed"})
+    assert updated.status_code == 200 and updated.json()["status"] == "reviewed"
+    assert admin.get(f"/admin/issues/{issue['id']}").json()["status"] == "reviewed"
+    assert admin.get("/admin/issues/counts").json()["open"] == before["open"]
+    assert admin.patch(f"/admin/issues/{issue['id']}", json={"status": "nonsense"}).status_code == 422
+
+    time.sleep(2)  # the reporter is told through the notification worker
+    notices = landowner.get("/notifications", params={"size": 5}).json()["items"]
+    assert any(n["kind"] == "issue_update" and n["entity_id"] == issue["id"] for n in notices)
+
+
+# --------------------------------------------------------------------------- nearby parking
+
+
+def test_recommended_sort_puts_usable_parking_first_then_nearest() -> None:
+    origin = {"lat": 27.7172, "lng": 85.3240}
+    query = {**origin, "radius_m": 50_000, "sort": "recommended", "size": 100}
+    items = httpx.get(f"{BASE}/parkings", params=query).json()["items"]
+    assert len(items) > 3 and all(p["distance_m"] is not None for p in items)
+
+    def usable(p: dict) -> bool:
+        return p["is_open_now"] and p["available_spaces"] > 0 and p["status"] == "open"
+
+    flags = [usable(p) for p in items]
+    assert flags == sorted(flags, reverse=True), "usable parking must come before full or closed parking"
+    for group in (True, False):
+        distances = [p["distance_m"] for p in items if usable(p) is group]
+        assert distances == sorted(distances)
+
+    markers = httpx.get(f"{BASE}/parkings/map", params=origin).json()
+    near = [m["distance_m"] for m in markers if m["kind"] == "parking"]
+    assert near and near == sorted(near)
+    assert all(m["distance_m"] is None for m in httpx.get(f"{BASE}/parkings/map").json())
+
+
+# --------------------------------------------------------------------------- live vehicle tracking
+
+
+def test_detector_tracking_drives_camera_traffic_and_is_served_to_police(police: httpx.Client) -> None:
+    key = {"X-API-Key": os.environ["INGEST_API_KEY"]}
+    code = f"TR-{uuid.uuid4().hex[:6].upper()}"
+    moving = {"track_id": 7, "vehicle_type": "Car", "status": "moving", "confidence": 0.91, "speed_kmh": 24.8}
+    stopped = {"track_id": 9, "vehicle_type": "Car", "status": "stopped", "confidence": 0.8, "speed_kmh": 0}
+    parked = {"track_id": 3, "vehicle_type": "Motorcycle", "status": "parked", "confidence": 0.7}
+    telemetry = {
+        "camera_code": code,
+        "vehicle_count": 3,
+        "moving_count": 1,
+        "stopped_count": 1,
+        "parked_count": 1,
+        "counts_by_class": {"Car": 2, "Motorcycle": 1},
+        "flow_per_minute": 14,
+        "avg_speed_kmh": 12.4,
+        "fps": 14.5,
+        "tracks": [
+            {**moving, "box": [0.1, 0.2, 0.3, 0.4]},
+            {**stopped, "stopped_seconds": 6.5, "box": [0.4, 0.4, 0.6, 0.7]},
+            {**parked, "stopped_seconds": 41, "box": [0.7, 0.5, 0.8, 0.7]},
+        ],
+    }
+    assert httpx.post(f"{BASE}/ingest/telemetry", json=telemetry, headers={"X-API-Key": "wrong"}).status_code == 401
+    # Tracking for a camera that never registered is refused rather than silently dropped.
+    assert httpx.post(f"{BASE}/ingest/telemetry", json=telemetry, headers=key).status_code == 404
+
+    beat = {"camera_code": code, "name": "Tracking test", "stream_url": "http://192.168.1.51:8090"}
+    camera_id = httpx.post(f"{BASE}/ingest/heartbeat", json=beat, headers=key).json()["camera_id"]
+    # Before any tracking arrives the camera is AI-enabled but has no live picture.
+    idle = police.get(f"/cameras/{camera_id}/tracking").json()
+    assert idle["ai_enabled"] is True and idle["tracking"] is None
+
+    accepted = httpx.post(f"{BASE}/ingest/telemetry", json=telemetry, headers=key)
+    assert accepted.status_code == 200
+    # 12.4 km/h falls in the 8-18 km/h band the simulator calls "slow".
+    assert accepted.json() == {"camera_id": camera_id, "traffic_level": "slow", "avg_speed_kmh": 12}
+
+    camera = police.get(f"/cameras/{camera_id}").json()
+    assert camera["ai_enabled"] is True and camera["status"] == "live"
+    assert camera["traffic_level"] == "slow" and camera["avg_speed_kmh"] == 12
+    assert camera["tracking"]["vehicle_count"] == 3 and camera["tracking"]["parked_count"] == 1
+
+    live = police.get(f"/cameras/{camera_id}/tracking").json()["tracking"]
+    assert [t["track_id"] for t in live["tracks"]] == [7, 9, 3]
+    assert live["tracks"][0]["speed_kmh"] == 24.8 and live["tracks"][2]["status"] == "parked"
+    assert live["counts_by_class"] == {"Car": 2, "Motorcycle": 1} and live["flow_per_minute"] == 14
+
+    listed = police.get("/cameras", params={"q": code}).json()["items"][0]
+    assert listed["tracking"]["vehicle_count"] == 3
+
+    # A faster reading moves the camera to another level; an update without a speed keeps the last one.
+    clear = httpx.post(f"{BASE}/ingest/telemetry", json={**telemetry, "avg_speed_kmh": 33.6}, headers=key).json()
+    assert clear["traffic_level"] == "clear" and clear["avg_speed_kmh"] == 34
+    kept = httpx.post(f"{BASE}/ingest/telemetry", json={**telemetry, "avg_speed_kmh": None}, headers=key).json()
+    assert kept["traffic_level"] == "clear" and kept["avg_speed_kmh"] == 34
+
+    bad = {**telemetry, "tracks": [{**telemetry["tracks"][0], "box": [0.1, 0.2, 1.3, 0.4]}]}
+    assert httpx.post(f"{BASE}/ingest/telemetry", json=bad, headers=key).status_code == 422
+
+    # Simulated cameras expose neither a stream address nor tracking.
+    simulated = police.get("/cameras", params={"q": "CAM-001"}).json()["items"][0]
+    assert simulated["ai_enabled"] is False and simulated["stream_url"] is None and simulated["tracking"] is None
+    assert police.get(f"/cameras/{simulated['id']}/tracking").json()["tracking"] is None
+

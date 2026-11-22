@@ -1,4 +1,4 @@
-import { ChevronRight, ClipboardList, Map, UserPlus } from "lucide-react";
+import { ChevronRight, ClipboardList, Map, MessageSquareWarning, MessagesSquare, UserPlus } from "lucide-react";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
@@ -13,6 +13,8 @@ export const metadata: Metadata = { title: "More" };
 async function AdminMorePageContent() {
   const user = await getViewer();
   const links = [
+    { href: "/admin/issues", icon: <MessageSquareWarning />, label: "Issue reports from the public" },
+    { href: "/admin/suggestions", icon: <MessagesSquare />, label: "Suggestions from the public" },
     { href: "/admin/audit", icon: <ClipboardList />, label: "Audit log" },
     { href: "/admin/users/new", icon: <UserPlus />, label: "Add staff account" },
     { href: "/admin/map", icon: <Map />, label: "Valley-wide map" },

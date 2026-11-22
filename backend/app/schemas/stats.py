@@ -16,6 +16,7 @@ class OverviewStats(BaseModel):
     high_priority_alerts: int
     resolved_incidents: int
     registered_users: int
+    open_issue_reports: int = 0
 
 
 class MonthPoint(BaseModel):

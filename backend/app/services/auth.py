@@ -23,7 +23,7 @@ from app.core.security import (
     new_refresh_token,
     verify_password,
 )
-from app.models.enums import UserStatus
+from app.models.enums import UserRole, UserStatus
 from app.models.user import AuthSession, User
 from app.schemas.auth import TokenBundle
 from app.utils.text import looks_like_email, normalize_email, normalize_phone
@@ -109,7 +109,18 @@ def ensure_can_login(user: User) -> None:
         )
 
 
+def ensure_client_allowed(user: User, request: Request) -> None:
+    """Administrators work in the web dashboard; the mobile app never gets an administrator session."""
+    if user.role == UserRole.ADMIN and client_type(request) == "mobile":
+        raise AppError(
+            status.HTTP_403_FORBIDDEN,
+            "admin_web_only",
+            "Administrator accounts sign in on the Park Mandu web dashboard, not in the mobile app.",
+        )
+
+
 async def issue_session(db: AsyncSession, user: User, request: Request) -> IssuedTokens:
+    ensure_client_allowed(user, request)
     now = datetime.now(UTC)
     refresh_token = new_refresh_token()
     session = AuthSession(

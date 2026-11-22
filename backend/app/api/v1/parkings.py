@@ -8,6 +8,7 @@ from app.api.deps import CurrentUser, DbSession
 from app.core.config import settings
 from app.core.errors import not_found
 from app.core.rate_limit import limiter
+from app.core.redis import redis_client
 from app.models.application import ParkingApplication
 from app.models.enums import PENDING_APPLICATION_STATUSES, AvailableDays, ParkingStatus, PricingMode
 from app.models.parking import IssueReport, ParkingLocation
@@ -27,6 +28,7 @@ from app.utils.text import escape_like
 router = APIRouter(prefix="/parkings", tags=["parkings"])
 
 MAP_MARKER_LIMIT = 500
+ADMIN_STATS_CACHE_KEY = "cache:admin:dashboard"
 
 
 def geography_point(lat: float, lng: float) -> ColumnElement[Any]:
@@ -87,17 +89,31 @@ async def list_parkings(filters: Annotated[ParkingFilters, Query()], db: DbSessi
         stmt = stmt.where(ParkingLocation.available_spaces > 0, ParkingLocation.status == ParkingStatus.OPEN)
     if filters.free_only:
         stmt = stmt.where(ParkingLocation.pricing_mode == PricingMode.FREE)
+    if filters.vehicle_type:
+        stmt = stmt.where(ParkingLocation.vehicle_types.contains([filters.vehicle_type.value]))
     if filters.open_now:
         stmt = stmt.where(open_now_clause())
 
+    nearest = distance.asc() if has_origin else ParkingLocation.name.asc()
+    # Usable right now: open at this moment, not full, not closed by the operator.
+    usable_first = case(
+        (
+            and_(
+                open_now_clause(), ParkingLocation.available_spaces > 0, ParkingLocation.status == ParkingStatus.OPEN
+            ),
+            0,
+        ),
+        else_=1,
+    )
     order = {
-        "distance": distance.asc() if has_origin else ParkingLocation.name.asc(),
-        "name": ParkingLocation.name.asc(),
-        "available": ParkingLocation.available_spaces.desc(),
-        "price": func.coalesce(ParkingLocation.price_per_hour, 0).asc(),
-        "newest": ParkingLocation.created_at.desc(),
+        "recommended": (usable_first, nearest),
+        "distance": (nearest,),
+        "name": (ParkingLocation.name.asc(),),
+        "available": (ParkingLocation.available_spaces.desc(),),
+        "price": (func.coalesce(ParkingLocation.price_per_hour, 0).asc(),),
+        "newest": (ParkingLocation.created_at.desc(),),
     }[filters.sort]
-    stmt = stmt.order_by(order, ParkingLocation.id)
+    stmt = stmt.order_by(*order, ParkingLocation.id)
 
     return await paginate(
         db,
@@ -122,18 +138,31 @@ async def list_areas(db: DbSession) -> list[str]:
 @router.get("/map", response_model=list[MapMarker], summary="Lightweight markers inside a map viewport")
 async def map_markers(bounds: Annotated[MapBounds, Query()], db: DbSession) -> list[MapMarker]:
     envelope = func.ST_MakeEnvelope(bounds.min_lng, bounds.min_lat, bounds.max_lng, bounds.max_lat, 4326)
-    parkings = (
-        await db.scalars(
-            select(ParkingLocation)
+    has_origin = bounds.lat is not None and bounds.lng is not None
+    distance: ColumnElement[Any] = (
+        func.ST_Distance(ParkingLocation.location, geography_point(bounds.lat, bounds.lng))  # type: ignore[arg-type]
+        if has_origin
+        else literal(None)
+    ).label("distance_m")
+    rows = (
+        await db.execute(
+            select(ParkingLocation, distance)
             .where(
                 ParkingLocation.is_published.is_(True),
                 func.ST_Intersects(func.geometry(ParkingLocation.location), envelope),
+                *(
+                    [ParkingLocation.vehicle_types.contains([bounds.vehicle_type.value])]
+                    if bounds.vehicle_type
+                    else []
+                ),
             )
+            # With a known position the nearest markers survive the limit and are listed first.
+            .order_by(distance.asc() if has_origin else ParkingLocation.name.asc(), ParkingLocation.id)
             .limit(MAP_MARKER_LIMIT)
         )
     ).all()
     markers = []
-    for p in parkings:
+    for p, distance_m in rows:
         summary = parking_service.to_summary(p)
         price = "Free" if p.pricing_mode == PricingMode.FREE else f"NPR {p.price_per_hour:.0f}/hr"
         markers.append(
@@ -146,6 +175,7 @@ async def map_markers(bounds: Annotated[MapBounds, Query()], db: DbSession) -> l
                 longitude=p.longitude,
                 tone=summary.marker_tone,
                 status=p.status.value,
+                distance_m=round(distance_m, 1) if distance_m is not None else None,
             )
         )
 
@@ -223,4 +253,6 @@ async def report_issue(
     )
     db.add(report)
     await db.commit()
+    # The admin dashboard caches its counters; drop them so the new report shows up immediately.
+    await redis_client.delete(ADMIN_STATS_CACHE_KEY)
     return report

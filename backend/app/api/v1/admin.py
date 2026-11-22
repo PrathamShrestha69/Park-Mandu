@@ -4,13 +4,14 @@ from datetime import UTC, date, datetime, time, timedelta
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Query, Request, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import AdminUser, DbSession, client_ip
 from app.api.v1.applications import detail_response, load_application
 from app.core.errors import AppError, conflict, not_found
+from app.core.realtime import emit, role_room
 from app.core.redis import redis_client
 from app.core.security import hash_password
 from app.models.application import ApplicationEvent, ParkingApplication
@@ -22,15 +23,16 @@ from app.models.enums import (
     ApplicationStatus,
     CameraStatus,
     IncidentStatus,
+    IssueStatus,
     NotificationKind,
     NotificationTone,
     ParkingCategory,
     ParkingStatus,
     UserRole,
 )
-from app.models.monitoring import Alert, Camera, Incident
+from app.models.monitoring import POLICE_CAMERA, Alert, Camera, Incident
 from app.models.notification import AuditLog
-from app.models.parking import ParkingLocation
+from app.models.parking import IssueReport, ParkingLocation
 from app.models.user import User
 from app.schemas.application import (
     ApplicationDetail,
@@ -39,8 +41,15 @@ from app.schemas.application import (
     DecisionRequest,
     StatusCounts,
 )
+from app.schemas.common import MessageOut
 from app.schemas.monitoring import VIOLATION_LABELS
-from app.schemas.parking import MapMarker
+from app.schemas.parking import (
+    IssueCounts,
+    IssueFilters,
+    IssueReportAdminOut,
+    IssueStatusUpdate,
+    MapMarker,
+)
 from app.schemas.stats import (
     ActivityPoint,
     AdminMapOut,
@@ -53,7 +62,7 @@ from app.schemas.stats import (
 )
 from app.schemas.user import StaffCreate, UserFilters, UserOut, UserUpdate
 from app.services import applications as app_service
-from app.services import audit
+from app.services import audit, occupancy
 from app.services import parking as parking_service
 from app.services.auth import revoke_all_sessions
 from app.utils.pagination import Page, PageParams, paginate
@@ -233,6 +242,7 @@ async def decide(
                 longitude=app.longitude,
                 category=ParkingCategory.PRIVATE,
                 parking_type=app.parking_type,
+                vehicle_types=list(app.vehicle_types or ["car", "bike"]),
                 capacity=app.capacity,
                 available_spaces=app.capacity,
                 land_size_sqm=app.land_size_sqm,
@@ -270,6 +280,9 @@ async def decide(
     await db.commit()
     await invalidate_stats()
     notify(app.applicant_id, notice_kind, tone, title, body_text, "application", app.id)
+    if new_status == ApplicationStatus.APPROVED:
+        await emit("parking:added", {"application_id": str(app.id), "name": app.property_name})
+    await emit("admin:update", {"entity": "application", "id": str(app.id)}, role_room(UserRole.ADMIN.value))
     return await detail_response(db, await load_application(db, application_id, admin))
 
 
@@ -298,7 +311,9 @@ async def _compute_stats(db: DbSession) -> DashboardStats:
     app_counts = dict(
         (await db.execute(select(ParkingApplication.status, func.count()).group_by(ParkingApplication.status))).all()
     )
-    camera_counts = dict((await db.execute(select(Camera.status, func.count()).group_by(Camera.status))).all())
+    camera_counts = dict(
+        (await db.execute(select(Camera.status, func.count()).where(POLICE_CAMERA).group_by(Camera.status))).all()
+    )
 
     overview = OverviewStats(
         registered_parkings=await count(select(func.count()).where(ParkingLocation.is_published.is_(True))),
@@ -315,6 +330,7 @@ async def _compute_stats(db: DbSession) -> DashboardStats:
         ),
         resolved_incidents=await count(select(func.count()).where(Incident.status == IncidentStatus.RESOLVED)),
         registered_users=await count(select(func.count()).select_from(User)),
+        open_issue_reports=await count(select(func.count()).where(IssueReport.status == IssueStatus.OPEN)),
     )
 
     months = _month_starts(6)
@@ -398,6 +414,106 @@ async def dashboard_stats(_: AdminUser, db: DbSession) -> DashboardStats:
     return stats
 
 
+# --------------------------------------------------------------------------- issue reports
+
+
+def _issue_query() -> Any:
+    return select(IssueReport).options(selectinload(IssueReport.parking), selectinload(IssueReport.reporter))
+
+
+@router.get("/issues", response_model=Page[IssueReportAdminOut], summary="Problems the public reported about parking")
+async def list_issues(filters: Annotated[IssueFilters, Query()], _: AdminUser, db: DbSession) -> dict[str, Any]:
+    stmt = (
+        _issue_query()
+        .join(ParkingLocation, ParkingLocation.id == IssueReport.parking_id)
+        .join(User, User.id == IssueReport.reporter_id)
+    )
+    if filters.status:
+        stmt = stmt.where(IssueReport.status == filters.status)
+    if filters.category:
+        stmt = stmt.where(IssueReport.category == filters.category)
+    if filters.parking_id:
+        stmt = stmt.where(IssueReport.parking_id == filters.parking_id)
+    if filters.q:
+        pattern = f"%{escape_like(filters.q.strip())}%"
+        stmt = stmt.where(
+            or_(
+                ParkingLocation.name.ilike(pattern, escape="\\"),
+                ParkingLocation.area.ilike(pattern, escape="\\"),
+                User.full_name.ilike(pattern, escape="\\"),
+                IssueReport.description.ilike(pattern, escape="\\"),
+            )
+        )
+    order = IssueReport.created_at.asc() if filters.sort == "oldest" else IssueReport.created_at.desc()
+    return await paginate(db, stmt.order_by(order, IssueReport.id), filters)
+
+
+@router.get("/issues/counts", response_model=IssueCounts)
+async def issue_counts(_: AdminUser, db: DbSession) -> IssueCounts:
+    rows = dict((await db.execute(select(IssueReport.status, func.count()).group_by(IssueReport.status))).all())
+    return IssueCounts(
+        total=sum(rows.values()),
+        open=rows.get(IssueStatus.OPEN, 0),
+        reviewed=rows.get(IssueStatus.REVIEWED, 0),
+        closed=rows.get(IssueStatus.CLOSED, 0),
+    )
+
+
+@router.get("/issues/{issue_id}", response_model=IssueReportAdminOut)
+async def get_issue(issue_id: uuid.UUID, _: AdminUser, db: DbSession) -> IssueReport:
+    issue = await db.scalar(_issue_query().where(IssueReport.id == issue_id))
+    if issue is None:
+        raise not_found("Issue report")
+    return issue
+
+
+ISSUE_NOTICES: dict[IssueStatus, tuple[NotificationTone, str, str]] = {
+    IssueStatus.OPEN: (NotificationTone.INFO, "Your report was reopened.", "is being looked at again"),
+    IssueStatus.REVIEWED: (NotificationTone.INFO, "Your report is being reviewed.", "has been reviewed by an officer"),
+    IssueStatus.CLOSED: (NotificationTone.SUCCESS, "Your report has been closed.", "has been dealt with and closed"),
+}
+
+
+@router.patch("/issues/{issue_id}", response_model=IssueReportAdminOut, summary="Change the status of an issue report")
+async def update_issue(
+    request: Request, issue_id: uuid.UUID, body: IssueStatusUpdate, admin: AdminUser, db: DbSession
+) -> IssueReport:
+    issue = await db.scalar(_issue_query().where(IssueReport.id == issue_id).with_for_update(of=IssueReport))
+    if issue is None:
+        raise not_found("Issue report")
+    if issue.status == body.status:
+        return issue
+    previous = issue.status
+    issue.status = body.status
+    reporter_id, parking_name = issue.reporter_id, issue.parking.name
+    audit.record(
+        db,
+        actor=admin,
+        action="issue.updated",
+        entity_type="issue_report",
+        entity_id=issue.id,
+        ip_address=client_ip(request),
+        status=body.status.value,
+        previous=previous.value,
+    )
+    await db.commit()
+    await invalidate_stats()
+    tone, title, outcome = ISSUE_NOTICES[body.status]
+    notify(
+        reporter_id,
+        NotificationKind.ISSUE_UPDATE,
+        tone,
+        title,
+        f"Your report about {parking_name} {outcome}.",
+        "issue_report",
+        issue_id,
+    )
+    db.expunge_all()
+    refreshed = await db.scalar(_issue_query().where(IssueReport.id == issue_id))
+    assert refreshed is not None
+    return refreshed
+
+
 # --------------------------------------------------------------------------- national map
 
 MapLayer = Literal["approved", "pending", "rejected", "cameras", "incidents"]
@@ -463,7 +579,7 @@ async def admin_map(
                 for a in group
             )
 
-    cameras = (await db.scalars(select(Camera))).all()
+    cameras = (await db.scalars(select(Camera).where(POLICE_CAMERA))).all()
     counts["cameras"] = len(cameras)
     if "cameras" in active:
         markers.extend(
@@ -652,3 +768,71 @@ async def audit_logs(
             created_at=row[0].created_at,
         ),
     )
+
+
+# --------------------------------------------------------------------------- cameras and occupancy
+
+
+class CameraParkingLink(BaseModel):
+    parking_id: uuid.UUID | None
+
+
+class OccupancyUpdate(BaseModel):
+    occupied_spaces: int = Field(ge=0, le=100_000)
+
+
+@router.patch("/cameras/{camera_id}/parking", response_model=MessageOut, summary="Link a camera to its parking")
+async def link_camera_parking(
+    request: Request, camera_id: uuid.UUID, body: CameraParkingLink, admin: AdminUser, db: DbSession
+) -> MessageOut:
+    camera = await db.get(Camera, camera_id)
+    if camera is None or camera.owner_id is not None:
+        raise not_found("Camera")
+    if body.parking_id is not None and await db.get(ParkingLocation, body.parking_id) is None:
+        raise not_found("Parking location")
+    camera.parking_id = body.parking_id
+    audit.record(
+        db,
+        actor=admin,
+        action="camera.parking_linked",
+        entity_type="camera",
+        entity_id=camera.id,
+        ip_address=client_ip(request),
+        parking_id=body.parking_id,
+    )
+    await db.commit()
+    if body.parking_id is None:
+        return MessageOut(message=f"{camera.code} no longer updates parking availability.")
+    return MessageOut(message=f"{camera.code} now updates that facility's availability from its AI vehicle count.")
+
+
+@router.put("/parkings/{parking_id}/occupancy", response_model=MessageOut, summary="Correct how many spaces are taken")
+async def set_parking_occupancy(
+    request: Request, parking_id: uuid.UUID, body: OccupancyUpdate, admin: AdminUser, db: DbSession
+) -> MessageOut:
+    parking = await db.scalar(select(ParkingLocation).where(ParkingLocation.id == parking_id).with_for_update())
+    if parking is None:
+        raise not_found("Parking location")
+    if body.occupied_spaces > parking.capacity:
+        raise AppError(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "validation_error",
+            "Please check the highlighted fields.",
+            {"occupied_spaces": f"This facility only has {parking.capacity} spaces."},
+        )
+    parking_service.set_occupancy(parking, body.occupied_spaces)
+    await occupancy.hold_after_manual_correction(parking.id)
+    audit.record(
+        db,
+        actor=admin,
+        action="parking.occupancy",
+        entity_type="parking",
+        entity_id=parking.id,
+        ip_address=client_ip(request),
+        occupied=body.occupied_spaces,
+    )
+    payload = parking_service.realtime_payload(parking)
+    await db.commit()
+    await invalidate_stats()
+    await emit("parking:update", payload)
+    return MessageOut(message=f"{parking.name}: {payload['available_spaces']} of {parking.capacity} spaces free.")

@@ -106,12 +106,22 @@ docker compose exec api ruff check app tests
 | `send_notification`: in-app notification + optional Expo push | `notifications` | Application events |
 | `send_sms`: SMS gateway integration point (logs in development) | `notifications` | OTP / password reset |
 | `ingest_detection`: CCTV analytics → alert, de-duplicated for 10 minutes | `monitoring` | `POST /ingest/detections` |
-| `simulate_camera_telemetry` / `simulate_detection` | `monitoring` | Beat (demo data) |
+| `simulate_camera_telemetry` / `simulate_detection`: demo data for cameras without a detector; also marks silent cameras offline | `monitoring` | Beat |
 | `escalate_stale_alerts`: raise priority after 30 min, auto-close after 8 h | `monitoring` | Beat, every minute |
 | `purge_expired_sessions` | `default` | Beat, every 6 h |
 
-Set `SIMULATE_DETECTIONS=false` to turn off the demo CCTV simulator once real cameras push to
-`POST /api/v1/ingest/detections` with the `X-API-Key` header.
+AI detectors call three endpoints with the `X-API-Key` header: `POST /ingest/heartbeat` (register
+and keep a camera live), `POST /ingest/telemetry` (live vehicle tracking and measured speed, kept in
+Redis for 15 seconds and served by `GET /cameras/{id}/tracking`) and `POST /ingest/detections`
+(parked vehicle → alert). A camera that a detector has reported for (`cameras.detector_seen_at`) is
+never touched by the simulator: it goes offline two minutes after the detector's last report and its
+traffic level comes from the measured speed, using the bands in `app/services/traffic.py`. Set
+`SIMULATE_DETECTIONS=false` to switch the demo simulator off entirely.
+
+Issue reports sent by the public (`POST /parkings/{id}/reports`) are listed and managed by
+administrators through `GET /admin/issues`, `GET /admin/issues/counts` and `PATCH /admin/issues/{id}`;
+a status change notifies the reporter. Administrator endpoints and sign-ins are refused for the mobile
+client (`X-Client-Type: mobile`).
 
 ## Layout
 

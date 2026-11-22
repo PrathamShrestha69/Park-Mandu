@@ -10,6 +10,7 @@ import type {
   Severity,
   Tone,
   TrafficLevel,
+  VehicleType,
 } from "./types";
 
 export const PARKING_TYPE_LABEL: Record<ParkingType, string> = {
@@ -19,6 +20,19 @@ export const PARKING_TYPE_LABEL: Record<ParkingType, string> = {
   rooftop: "Rooftop parking",
   street: "Street parking",
 };
+
+export const VEHICLE_TYPE_LABEL: Record<VehicleType, string> = {
+  car: "Car",
+  bike: "Bike",
+  other: "Others",
+};
+
+export const VEHICLE_TYPES = Object.keys(VEHICLE_TYPE_LABEL) as VehicleType[];
+
+/** "Car, Bike" in the canonical order. */
+export function vehicleTypesLabel(types: readonly VehicleType[] | null | undefined): string {
+  return VEHICLE_TYPES.filter((t) => types?.includes(t)).map((t) => VEHICLE_TYPE_LABEL[t]).join(", ") || "—";
+}
 
 export const DAYS_LABEL: Record<AvailableDays, string> = {
   every_day: "Every day",
@@ -136,4 +150,43 @@ export function percent(value: number): string {
 
 export function titleCase(value: string): string {
   return value.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+export const SUGGESTION_CATEGORY: Record<import("./types").SuggestionCategory, string> = {
+  parking: "Parking",
+  traffic: "Traffic & roads",
+  app: "This app",
+  safety: "Safety",
+  other: "Something else",
+};
+
+export const SUGGESTION_STATUS: Record<import("./types").SuggestionStatus, { label: string; tone: import("./types").Tone }> = {
+  new: { label: "New", tone: "warning" },
+  reviewed: { label: "Reviewed", tone: "info" },
+  resolved: { label: "Acted on", tone: "success" },
+  archived: { label: "Archived", tone: "neutral" },
+};
+
+export const BOOKING_STATUS: Record<import("./types").BookingDisplayStatus, { label: string; tone: import("./types").Tone }> = {
+  awaiting_payment: { label: "Awaiting payment", tone: "warning" },
+  payment_pending: { label: "Payment pending", tone: "warning" },
+  active: { label: "Confirmed", tone: "success" },
+  ended: { label: "Ended", tone: "neutral" },
+  expired: { label: "Expired", tone: "neutral" },
+  cancelled: { label: "Cancelled", tone: "neutral" },
+  needs_attention: { label: "Refund in progress", tone: "danger" },
+};
+
+export const PAYMENT_STATUS: Record<import("./types").PaymentStatus, { label: string; tone: import("./types").Tone }> = {
+  initiated: { label: "Started", tone: "neutral" },
+  pending: { label: "Pending", tone: "warning" },
+  completed: { label: "Successful", tone: "success" },
+  failed: { label: "Failed", tone: "danger" },
+  cancelled: { label: "Cancelled", tone: "neutral" },
+  expired: { label: "Expired", tone: "neutral" },
+  refunded: { label: "Refunded", tone: "info" },
+};
+
+export function formatRupees(amount: string | number): string {
+  return `Rs ${Number(amount).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 }

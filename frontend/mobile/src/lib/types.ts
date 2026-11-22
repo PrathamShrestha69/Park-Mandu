@@ -55,6 +55,9 @@ export type PricingMode = "free" | "hourly";
 export type AvailableDays = "every_day" | "weekdays" | "mon_sat" | "weekends";
 export type MarkerTone = "green" | "blue" | "gray" | "red" | "amber" | "camera" | "incident";
 
+export type VehicleType = "car" | "bike" | "other";
+export type OccupancySource = "camera" | "manual";
+
 export interface ParkingSummary {
   id: string;
   name: string;
@@ -64,6 +67,9 @@ export interface ParkingSummary {
   parking_type: ParkingType;
   capacity: number;
   available_spaces: number;
+  /** Always capacity − available_spaces, computed by the API. */
+  occupied_spaces: number;
+  vehicle_types: VehicleType[];
   pricing_mode: PricingMode;
   price_per_hour: string | null;
   status: ParkingStatus;
@@ -82,7 +88,32 @@ export interface ParkingDetail extends ParkingSummary {
   contact_phone: string | null;
   land_size_sqm: number | null;
   is_owner_verified: boolean;
+  occupancy_source: OccupancySource | null;
+  occupancy_updated_at: string | null;
   created_at: string;
+}
+
+export type CameraConnection = "connected" | "waiting" | "disconnected" | "maintenance";
+
+/** The CCTV camera an owner connected to count vehicles in their facility. */
+export interface OwnerCamera {
+  id: string;
+  code: string;
+  name: string;
+  source_url: string | null;
+  connection: CameraConnection;
+  connection_label: string;
+  last_seen_at: string | null;
+  stream_url: string | null;
+  /** Distinct parked vehicles in the detector's latest report (before smoothing). */
+  detected_vehicles: number | null;
+}
+
+/** A facility the signed-in user owns, with AI occupancy monitoring. */
+export interface OwnerParking extends ParkingDetail {
+  camera: OwnerCamera | null;
+  /** A manual correction holds until what the camera sees changes. */
+  manual_hold: boolean;
 }
 
 export interface MapMarker {
@@ -94,6 +125,30 @@ export interface MapMarker {
   longitude: number;
   tone: MarkerTone;
   status: string;
+  /** Distance from the viewer in metres; null when the request carried no position. */
+  distance_m?: number | null;
+}
+
+export type IssueCategory = "wrong_information" | "closed_or_full" | "overcharging" | "safety" | "other";
+export type IssueStatus = "open" | "reviewed" | "closed";
+
+/** A problem a member of the public reported about a parking location, as administrators see it. */
+export interface IssueReport {
+  id: string;
+  category: IssueCategory;
+  description: string;
+  status: IssueStatus;
+  created_at: string;
+  updated_at: string;
+  parking: { id: string; name: string; address: string; area: string; latitude: number; longitude: number };
+  reporter: { id: string; full_name: string; email: string | null; phone: string | null };
+}
+
+export interface IssueCounts {
+  total: number;
+  open: number;
+  reviewed: number;
+  closed: number;
 }
 
 export type ApplicationStatus =
@@ -153,6 +208,7 @@ export interface ApplicationDetail extends ApplicationSummary {
   longitude: number | null;
   land_size_sqm: number | null;
   parking_type: ParkingType | null;
+  vehicle_types: VehicleType[];
   opens_at: string | null;
   closes_at: string | null;
   available_days: AvailableDays | null;
@@ -215,7 +271,52 @@ export interface Camera {
   last_heartbeat_at: string | null;
   /** Base URL of the AI detector's live preview (serves /stream.mjpg and /snapshot.jpg); null for simulated cameras. */
   stream_url: string | null;
+  /** True once a real AI detector has reported for this camera. */
+  ai_enabled: boolean;
+  /** Headline numbers from the detector's latest tracking update; null when it is not reporting. */
+  tracking: TrackingSummary | null;
   active_violations: number;
+}
+
+export type TrackStatus = "moving" | "stopped" | "parked";
+
+/** One vehicle an AI detector is following. `track_id` stays the same while the vehicle is in view. */
+export interface TrackedVehicle {
+  track_id: number;
+  vehicle_type: string;
+  status: TrackStatus;
+  confidence: number;
+  /** Null when the camera has no speed calibration. */
+  speed_kmh: number | null;
+  stopped_seconds: number;
+  /** x1, y1, x2, y2 as fractions of the frame. */
+  box: [number, number, number, number];
+}
+
+export interface TrackingSummary {
+  vehicle_count: number;
+  moving_count: number;
+  stopped_count: number;
+  parked_count: number;
+  /** Different vehicles seen during the last minute. */
+  flow_per_minute: number;
+  avg_speed_kmh: number | null;
+  updated_at: string;
+}
+
+export interface CameraTracking extends TrackingSummary {
+  counts_by_class: Record<string, number>;
+  fps: number | null;
+  tracks: TrackedVehicle[];
+}
+
+export interface CameraTrackingState {
+  camera_id: string;
+  camera_code: string;
+  ai_enabled: boolean;
+  traffic_level: TrafficLevel;
+  avg_speed_kmh: number;
+  tracking: CameraTracking | null;
 }
 
 export interface CameraCounts {
@@ -293,11 +394,15 @@ export interface IncidentDetail extends IncidentSummary {
 }
 
 export interface RoadCondition {
+  camera_id: string;
   camera_code: string;
   road: string;
   area: string;
   traffic_level: TrafficLevel;
   avg_speed_kmh: number;
+  /** "ai" when measured by a detector's live tracking, "simulated" for demo cameras. */
+  source: "ai" | "simulated";
+  vehicle_count: number | null;
 }
 
 export interface PoliceDashboard {
@@ -323,6 +428,7 @@ export interface DashboardStats {
     high_priority_alerts: number;
     resolved_incidents: number;
     registered_users: number;
+    open_issue_reports: number;
   };
   charts: {
     applications_over_time: { month: string; submitted: number; approved: number }[];
@@ -361,4 +467,99 @@ export interface FormState {
   message?: string;
   fields?: Record<string, string>;
   values?: Record<string, string>;
+}
+
+// --------------------------------------------------------------------------- paid parking (eSewa / Khalti)
+
+export type PaymentProvider = "esewa" | "khalti";
+export type PaymentStatus = "initiated" | "pending" | "completed" | "failed" | "cancelled" | "expired" | "refunded";
+export type BookingStatus = "pending_payment" | "confirmed" | "expired" | "cancelled";
+export type BookingDisplayStatus = "awaiting_payment" | "payment_pending" | "active" | "ended" | "expired" | "cancelled" | "needs_attention";
+export type ReconciliationState = "none" | "needs_confirmation" | "refund_required" | "resolved";
+
+export interface PaymentProviderOption {
+  id: PaymentProvider;
+  label: string;
+  enabled: boolean;
+  min_amount: string;
+  environment: "sandbox" | "production";
+}
+
+export interface BookingQuote {
+  parking_id: string;
+  hours: number;
+  price_per_hour: string;
+  amount: string;
+  currency: string;
+  bookable_spaces: number;
+  max_hours: number;
+  closes_at: string | null;
+  hold_minutes: number;
+  providers: PaymentProviderOption[];
+}
+
+export interface Payment {
+  id: string;
+  provider: PaymentProvider;
+  provider_label: string;
+  status: PaymentStatus;
+  amount: string;
+  transaction_uuid: string;
+  provider_transaction_id: string | null;
+  created_at: string;
+  completed_at: string | null;
+  failure_reason: string | null;
+  reconciliation: ReconciliationState;
+  reconciliation_note: string | null;
+  checkout_url: string | null;
+}
+
+export interface BookingSummary {
+  id: string;
+  reference: string | null;
+  kind: "initial" | "extension";
+  parent_id: string | null;
+  status: BookingStatus;
+  display_status: BookingDisplayStatus;
+  hours: number;
+  price_per_hour: string;
+  amount: string;
+  currency: string;
+  vehicle_plate: string | null;
+  hold_expires_at: string | null;
+  starts_at: string | null;
+  ends_at: string | null;
+  confirmed_at: string | null;
+  created_at: string;
+  parking: { id: string; name: string; address: string; latitude: number; longitude: number };
+}
+
+export interface BookingDetail extends BookingSummary {
+  payments: Payment[];
+  extensions: BookingSummary[];
+  latest_payment: Payment | null;
+  can_pay: boolean;
+  can_cancel: boolean;
+  can_extend: boolean;
+  max_extension_hours: number;
+}
+
+// --------------------------------------------------------------------------- in-app navigation
+
+export interface RouteStep {
+  instruction: string;
+  distance_m: number;
+  duration_s: number;
+  road: string;
+  maneuver: string;
+  location: [number, number];
+}
+
+export interface DrivingRoute {
+  distance_m: number;
+  duration_s: number;
+  /** [lng, lat] pairs */
+  geometry: [number, number][];
+  steps: RouteStep[];
+  provider: string;
 }

@@ -1,4 +1,4 @@
-import { ArrowLeft, Cctv, CircleCheck, Navigation, ShieldCheck, TriangleAlert, X } from "lucide-react";
+import { ArrowLeft, Cctv, CircleCheck, Navigation, Radio, ShieldCheck, TriangleAlert, X } from "lucide-react";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
@@ -9,8 +9,9 @@ import { MapView } from "@/components/map/map-view";
 import { Badge, Callout, CctvFeed, LiveDot, PageSkeleton, surface } from "@/components/common";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { dismissAlertAction, handleAlertAction } from "@/lib/actions/operations";
+import { dismissAlertAction, dispatchResponseFormAction, handleAlertAction } from "@/lib/actions/operations";
 import { apiGet } from "@/lib/api";
+import { getViewer } from "@/lib/dal";
 import { SEVERITY, formatClock, formatDateTime, percent, timeAgo } from "@/lib/format";
 import type { Alert } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -19,7 +20,7 @@ export const metadata: Metadata = { title: "Illegal parking alert" };
 
 async function AlertDetailPageContent(props: PageProps<"/police/alerts/[id]">) {
   const { id } = await props.params;
-  const alert = await apiGet<Alert>(`/alerts/${id}`);
+  const [alert, viewer] = await Promise.all([apiGet<Alert>(`/alerts/${id}`), getViewer()]);
   const open = alert.status === "active";
   const navigate = `https://www.google.com/maps/dir/?api=1&destination=${alert.latitude},${alert.longitude}`;
 
@@ -146,6 +147,8 @@ async function AlertDetailPageContent(props: PageProps<"/police/alerts/[id]">) {
             </Button>
           </div>
 
+          <DispatchPanel alert={alert} viewerId={viewer.id} />
+
           {open ? (
             <div className="flex flex-col gap-2">
               <form action={handleAlertAction}>
@@ -187,6 +190,50 @@ async function AlertDetailPageContent(props: PageProps<"/police/alerts/[id]">) {
         </div>
       </div>
     </div>
+  );
+}
+
+/** Who nearest-officer dispatch sent to this alert, and the chosen officer's Acknowledge / Decline. */
+function DispatchPanel({ alert, viewerId }: { alert: Alert; viewerId: string }) {
+  if (!alert.dispatch_status || alert.status !== "active") return null;
+  const distance = alert.dispatch_distance_m !== null ? `${alert.dispatch_distance_m} m away` : null;
+  if (alert.dispatch_status === "notified" && alert.dispatch_officer_id === viewerId) {
+    return (
+      <Callout tone="danger" icon={<Radio />} title="You have been dispatched to this incident">
+        <p>You are the nearest available officer{distance ? ` (${distance})` : ""}. Please confirm you are responding.</p>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          {(["accept", "decline"] as const).map((response) => (
+            <form key={response} action={dispatchResponseFormAction}>
+              <input type="hidden" name="alert_id" value={alert.id} />
+              <input type="hidden" name="response" value={response} />
+              <Button type="submit" variant={response === "accept" ? "danger" : "outline"} className="w-full">
+                {response === "accept" ? "Acknowledge" : "Decline"}
+              </Button>
+            </form>
+          ))}
+        </div>
+      </Callout>
+    );
+  }
+  if (alert.dispatch_status === "no_officer") {
+    return (
+      <Callout tone="warning" icon={<Radio />} title="No officer available within 1 km">
+        Nobody on duty is close enough to be sent automatically. This will be retried as officers move into range.
+      </Callout>
+    );
+  }
+  const who = alert.dispatch_officer_name ?? "the next nearest officer";
+  const state = {
+    notified: `Sent to ${who}${distance ? ` (${distance})` : ""}, awaiting response.`,
+    acknowledged: `${who} is responding${distance ? ` (${distance})` : ""}.`,
+    declined: "The officer declined; passing it to the next nearest officer.",
+    expired: "No answer in time; passing it to the next nearest officer.",
+  }[alert.dispatch_status];
+  return (
+    <p className="flex items-start gap-2 rounded-lg border bg-card px-3 py-2.5 text-sm">
+      <Radio className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+      {state}
+    </p>
   );
 }
 

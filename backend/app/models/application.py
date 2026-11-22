@@ -16,6 +16,7 @@ from sqlalchemy import (
     Text,
     Time,
 )
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, Timestamps, UUIDPrimaryKey, str_enum
@@ -56,6 +57,7 @@ class ParkingApplication(UUIDPrimaryKey, Timestamps, Base):
     land_size_sqm: Mapped[int | None] = mapped_column(Integer)
     capacity: Mapped[int | None] = mapped_column(Integer)
     parking_type: Mapped[ParkingType | None] = mapped_column(str_enum(ParkingType))
+    vehicle_types: Mapped[list[str] | None] = mapped_column(ARRAY(String(16)))
     opens_at: Mapped[time | None] = mapped_column(Time)
     closes_at: Mapped[time | None] = mapped_column(Time)
     available_days: Mapped[AvailableDays | None] = mapped_column(str_enum(AvailableDays))

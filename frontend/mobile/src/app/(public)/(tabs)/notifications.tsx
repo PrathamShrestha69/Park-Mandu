@@ -38,6 +38,7 @@ export default function Notifications() {
             onPress={() => {
               open.mutate(n);
               if (n.entity_type === "application" && n.entity_id) router.push(`/application/${n.entity_id}` as never);
+              if (n.entity_type === "booking" && n.entity_id) router.push(`/booking/${n.entity_id}` as never);
             }}
             style={!n.read_at ? { borderColor: colors.blue100, backgroundColor: colors.blue50 } : undefined}
             accessibilityLabel={`${n.read_at ? "" : "Unread. "}${n.title}`}

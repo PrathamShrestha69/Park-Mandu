@@ -39,9 +39,7 @@ function RootNavigator() {
         <Stack.Protected guard={role === "police"}>
           <Stack.Screen name="(police)" />
         </Stack.Protected>
-        <Stack.Protected guard={role === "admin"}>
-          <Stack.Screen name="(admin)" />
-        </Stack.Protected>
+        {/* Administration is a web dashboard; the app has no administrator screens. */}
       </Stack>
     </>
   );

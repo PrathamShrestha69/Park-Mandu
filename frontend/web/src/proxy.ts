@@ -20,6 +20,8 @@ const ROLE_AREAS: { prefix: string; roles: Role[] }[] = [
   { prefix: "/police", roles: ["police"] },
   { prefix: "/admin", roles: ["admin"] },
   { prefix: "/api/stream/alerts", roles: ["police", "admin"] },
+  { prefix: "/api/cameras", roles: ["police", "admin"] },
+  { prefix: "/api/files/alerts", roles: ["police", "admin"] },
 ];
 
 const matches = (path: string, prefix: string) => path === prefix || path.startsWith(`${prefix}/`);

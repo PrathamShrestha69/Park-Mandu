@@ -1,11 +1,12 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { BadgeCheck, CalendarDays, Car, Clock, MapPin, Navigation, SquareParking, TriangleAlert } from "lucide-react-native";
+import { BadgeCheck, Bike, CalendarDays, Car, Cctv, Clock, MapPin, Navigation, SquareParking, TriangleAlert } from "lucide-react-native";
 import type { ReactNode } from "react";
-import { Linking, Platform, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 
+import { BookParkingCard } from "@/components/booking";
 import { MapView } from "@/components/map-view";
 import { Badge, Button, Card, ErrorView, Header, KV, Loading, Row, Screen, Txt } from "@/components/ui";
-import { DAYS_LABEL, PARKING_TYPE_LABEL, formatDistance, formatHours, formatPrice } from "@/lib/format";
+import { DAYS_LABEL, PARKING_TYPE_LABEL, formatDistance, formatHours, formatPrice, vehicleTypesLabel } from "@/lib/format";
 import { useApi } from "@/lib/queries";
 import { colors } from "@/lib/theme";
 import type { ParkingDetail } from "@/lib/types";
@@ -30,10 +31,6 @@ export default function ParkingDetailScreen() {
   if (parking.isError) return <Screen><ErrorView error={parking.error} onRetry={() => parking.refetch()} /></Screen>;
   const p = parking.data;
   const unavailable = p.marker_tone === "red";
-  const directions = Platform.select({
-    ios: `http://maps.apple.com/?daddr=${p.latitude},${p.longitude}`,
-    default: `https://www.google.com/maps/dir/?api=1&destination=${p.latitude},${p.longitude}`,
-  });
 
   return (
     <Screen refreshing={parking.isRefetching} onRefresh={() => parking.refetch()}>
@@ -55,6 +52,7 @@ export default function ParkingDetailScreen() {
           <Tile icon={<SquareParking size={16} color={colors.slate600} />} label="Parking type" value={PARKING_TYPE_LABEL[p.parking_type]} />
           <Tile icon={<Car size={16} color={colors.slate600} />} label="Availability" value={`${p.available_spaces} of ${p.capacity}`} />
           <Tile icon={<CalendarDays size={16} color={colors.slate600} />} label="Open on" value={DAYS_LABEL[p.available_days]} />
+          <Tile icon={<Bike size={16} color={colors.slate600} />} label="Vehicles accepted" value={vehicleTypesLabel(p.vehicle_types)} />
         </View>
         <View style={styles.price}>
           <Txt variant="muted" color="rgba(250,250,249,0.7)">
@@ -73,13 +71,22 @@ export default function ParkingDetailScreen() {
           <KV label="Category" value={p.category === "government" ? "Government / public" : "Approved private"} />
           {p.contact_phone && <KV label="Contact" value={p.contact_phone} />}
         </View>
-        <Button title="Get directions" icon={<Navigation size={18} color="white" />} onPress={() => directions && Linking.openURL(directions)} />
+        <Button
+          title="Get directions"
+          icon={<Navigation size={18} color="white" />}
+          onPress={() => router.navigate({ pathname: "/explore", params: { navigate: p.id } } as never)}
+        />
         <Button title="Report an issue" variant="ghost" icon={<TriangleAlert size={18} color={colors.slate700} />} onPress={() => router.push(`/report/${p.id}` as never)} />
         <Row gap={6} style={{ justifyContent: "center" }}>
-          <BadgeCheck size={14} color={colors.slate500} />
-          <Txt variant="small">Availability is reported by the operator and may change.</Txt>
+          {p.occupancy_source === "camera" ? <Cctv size={14} color={colors.slate500} /> : <BadgeCheck size={14} color={colors.slate500} />}
+          <Txt variant="small">
+            {p.occupancy_source === "camera" ? "Free spaces are counted live by an AI camera." : "Availability is reported by the operator and may change."}
+          </Txt>
         </Row>
       </Card>
+      <View style={{ marginTop: 12 }}>
+        <BookParkingCard parking={p} />
+      </View>
       <Row gap={6} style={{ marginTop: 10, justifyContent: "center" }}>
         <MapPin size={13} color={colors.slate500} />
         <Txt variant="small">{p.area}</Txt>

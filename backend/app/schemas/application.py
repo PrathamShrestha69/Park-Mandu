@@ -14,6 +14,7 @@ from app.models.enums import (
     DocumentStatus,
     ParkingType,
     PricingMode,
+    VehicleType,
 )
 from app.schemas.common import ORMModel
 from app.schemas.user import PhoneNumber
@@ -42,6 +43,7 @@ class PropertyStep(BaseModel):
     land_size_sqm: int | None = Field(None, ge=10, le=1_000_000)
     capacity: int = Field(ge=1, le=2000)
     parking_type: ParkingType
+    vehicle_types: list[VehicleType] = Field(min_length=1, max_length=3, description="Vehicles the parking accepts")
     opens_at: time
     closes_at: time
     available_days: AvailableDays
@@ -50,6 +52,8 @@ class PropertyStep(BaseModel):
 
     @model_validator(mode="after")
     def _check(self) -> Self:
+        # Keep the canonical order (car, bike, other) and drop repeats.
+        self.vehicle_types = [v for v in VehicleType if v in self.vehicle_types]
         if self.opens_at == self.closes_at:
             raise ValueError("Opening and closing time cannot be the same.")
         if self.pricing_mode == PricingMode.HOURLY and not self.price_per_hour:
@@ -121,6 +125,7 @@ class ApplicationDetail(ApplicationSummary):
     longitude: float | None
     land_size_sqm: int | None
     parking_type: ParkingType | None
+    vehicle_types: list[VehicleType]
     opens_at: time | None
     closes_at: time | None
     available_days: AvailableDays | None

@@ -23,6 +23,7 @@ const ICON: Record<Notification["tone"], React.ReactNode> = {
 
 function linkFor(n: Notification): string {
   if (n.entity_type === "application" && n.entity_id) return `/my-parking/${n.entity_id}`;
+  if (n.entity_type === "booking" && n.entity_id) return `/bookings/${n.entity_id}`;
   return "";
 }
 

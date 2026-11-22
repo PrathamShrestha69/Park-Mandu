@@ -7,11 +7,11 @@ import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { requestOtpAction, verifyOtpAction } from "@/lib/actions/auth";
 
-import { ActionForm, FormAlert, FormMessage, SubmitButton, TextField } from "./forms";
+import { ActionForm, FormAlert, FormMessage, SubmitButton, TextField, useSafeAction } from "./forms";
 
 /** Two-step sign-in with a one-time SMS code. */
 export function OtpLogin({ next }: { next?: string }) {
-  const [sent, requestAction] = useActionState(requestOtpAction, {});
+  const [sent, requestAction] = useActionState(useSafeAction(requestOtpAction), {});
   const phone = sent.values?.phone;
 
   if (sent.ok && phone) {

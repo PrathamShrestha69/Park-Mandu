@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 
 from fastapi import FastAPI, Request, status
@@ -40,6 +41,9 @@ def conflict(message: str, code: str = "conflict") -> AppError:
 
 def unprocessable(message: str, fields: dict[str, str] | None = None) -> AppError:
     return AppError(status.HTTP_422_UNPROCESSABLE_ENTITY, "validation_error", message, fields)
+
+
+log = logging.getLogger(__name__)
 
 
 def _body(code: str, message: str, fields: dict[str, str] | None = None) -> dict[str, Any]:
@@ -85,4 +89,13 @@ def register_exception_handlers(app: FastAPI) -> None:
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             content=_body("rate_limited", f"Too many requests. Limit: {exc.detail}. Please try again shortly."),
             headers={"Retry-After": "60"},
+        )
+
+    @app.exception_handler(Exception)
+    async def _unexpected(request: Request, exc: Exception) -> JSONResponse:
+        # Full detail goes to the developer log; people only ever see a plain message.
+        log.error("Unhandled error on %s %s", request.method, request.url.path, exc_info=exc)
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content=_body("server_error", "Something went wrong. Please try again later."),
         )

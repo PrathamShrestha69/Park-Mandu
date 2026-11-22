@@ -1,4 +1,4 @@
-import { ArrowRight, Bell, FileCheck2, Search } from "lucide-react";
+import { ArrowRight, Bell, FileCheck2, LocateFixed, Search } from "lucide-react";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
@@ -6,7 +6,7 @@ import Link from "next/link";
 import { LocateMe } from "@/components/interactive";
 import { MapLegend, MapView } from "@/components/map/map-view";
 import { ParkingRow, markersToPoints } from "@/components/parking";
-import { EmptyState, PageHead, PageSkeleton, surface } from "@/components/common";
+import { ChipLink, Chips, Dot, EmptyState, PageHead, PageSkeleton, surface } from "@/components/common";
 import { Button } from "@/components/ui/button";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { apiGet } from "@/lib/api";
@@ -18,8 +18,13 @@ import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Home" };
 
-// Central Kathmandu (New Road) is used for distances until the browser shares a location.
-const CITY_CENTRE = { lat: 27.7048, lng: 85.3117 };
+/** Marker filters for the home map; "available" is the default so the map is not crowded. */
+const SHOW = {
+  available: (m: MapMarker) => m.kind === "parking" && m.tone !== "red",
+  government: (m: MapMarker) => m.kind === "parking" && m.tone === "blue",
+  all: () => true,
+} as const;
+type Show = keyof typeof SHOW;
 
 function coordinate(value: string | undefined, min: number, max: number): number | null {
   const n = Number(value);
@@ -31,24 +36,28 @@ async function HomePageContent(props: PageProps<"/home">) {
   const lat = coordinate(param(params, "lat"), -90, 90);
   const lng = coordinate(param(params, "lng"), -180, 180);
   const me = lat !== null && lng !== null ? { latitude: lat, longitude: lng } : null;
-  const origin = me ? { lat: me.latitude, lng: me.longitude } : CITY_CENTRE;
+  // Distances are only ever measured from the visitor's real position; without one nothing is assumed.
+  const origin = me ? { lat: me.latitude, lng: me.longitude } : undefined;
+  const requested = param(params, "show");
+  const show: Show = requested === "government" || requested === "all" ? requested : "available";
 
   const [viewer, unread, markers, nearby] = await Promise.all([
     getViewer(),
     getUnreadCount(),
-    apiGet<MapMarker[]>("/parkings/map"),
+    apiGet<MapMarker[]>("/parkings/map", origin),
     apiGet<Page<ParkingSummary>>("/parkings", {
-      lat: origin.lat,
-      lng: origin.lng,
-      radius_m: 10_000,
+      ...origin,
+      radius_m: origin ? 20_000 : undefined,
       available_only: true,
       open_now: true,
-      sort: "distance",
+      sort: "recommended",
       size: 4,
     }),
   ]);
-  const points = markersToPoints(markers, (m) => (m.kind === "parking" ? `/parking/${m.id}` : undefined));
-  const locationQuery = me ? `?lat=${origin.lat}&lng=${origin.lng}` : "";
+  const visible = markers.filter(SHOW[show]);
+  const locationQuery = origin ? `?lat=${origin.lat}&lng=${origin.lng}` : "";
+  const points = markersToPoints(visible, (m) => (m.kind === "parking" ? `/parking/${m.id}${locationQuery}` : undefined));
+  const chipQuery = { lat: origin?.lat, lng: origin?.lng, show: show === "available" ? undefined : show };
 
   return (
     <>
@@ -70,9 +79,23 @@ async function HomePageContent(props: PageProps<"/home">) {
       />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.65fr)_minmax(320px,1fr)] lg:items-start">
-        <MapView points={points} me={me} geolocate label="Parking map of Kathmandu Valley">
+        <div className="flex min-w-0 flex-col gap-3">
+        <Chips label="Parking shown on the map">
+          <ChipLink basePath="/home" query={chipQuery} param="show" value={undefined} current={chipQuery.show}>
+            <Dot className="bg-success" />
+            Available now
+          </ChipLink>
+          <ChipLink basePath="/home" query={chipQuery} param="show" value="government" current={chipQuery.show}>
+            <Dot className="bg-info" />
+            Government
+          </ChipLink>
+          <ChipLink basePath="/home" query={chipQuery} param="show" value="all" current={chipQuery.show}>
+            Everything
+          </ChipLink>
+        </Chips>
+        <MapView points={points} me={me} fitCount={me ? 8 : undefined} geolocate label="Parking map of Kathmandu Valley">
           <form action="/explore" className="absolute top-3 right-14 left-3 z-10" role="search">
-            {me && (
+            {origin && (
               <>
                 <input type="hidden" name="lat" value={origin.lat} />
                 <input type="hidden" name="lng" value={origin.lng} />
@@ -86,26 +109,40 @@ async function HomePageContent(props: PageProps<"/home">) {
             </InputGroup>
           </form>
           <MapLegend
-            items={[
-              { label: "Available", className: "bg-success" },
-              { label: "Government", className: "bg-info" },
-              { label: "Pending", className: "bg-muted-foreground/60" },
-              { label: "Unavailable", className: "bg-destructive" },
-            ]}
+            items={
+              show === "all"
+                ? [
+                    { label: "Available", className: "bg-success" },
+                    { label: "Government", className: "bg-info" },
+                    { label: "Full or closed", className: "bg-destructive" },
+                    { label: "Awaiting approval", className: "bg-muted-foreground/60" },
+                  ]
+                : [
+                    { label: "Available", className: "bg-success" },
+                    { label: "Government", className: "bg-info" },
+                  ]
+            }
           />
         </MapView>
+        </div>
 
         <aside className="flex flex-col gap-4" aria-labelledby="nearby-title">
           <section className={cn(surface, "p-5")}>
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
                 <h2 id="nearby-title" className="text-base font-semibold">
-                  Nearest available
+                  {me ? "Nearest available" : "Available now"}
                 </h2>
-                <p className="text-xs text-muted-foreground">{me ? "From your location" : "From central Kathmandu"}</p>
+                <p className="text-xs text-muted-foreground">{me ? "Sorted by distance from you" : "Across the valley"}</p>
               </div>
-              <LocateMe label={me ? "Update" : "Near me"} />
+              <LocateMe label={me ? "Update" : "Near me"} askOnce />
             </div>
+            {!me && (
+              <p className="mb-4 flex items-start gap-2 rounded-lg border border-info/20 bg-info/[0.06] px-3 py-2.5 text-xs text-info-ink">
+                <LocateFixed className="mt-0.5 size-3.5 shrink-0" />
+                Share your location to see the parking closest to you and how far it is. Without it you can still search by area.
+              </p>
+            )}
             {nearby.items.length ? (
               <div className="flex flex-col gap-3">
                 {nearby.items.map((p) => (
@@ -113,7 +150,7 @@ async function HomePageContent(props: PageProps<"/home">) {
                 ))}
               </div>
             ) : (
-              <EmptyState icon={<Search />} title="No open parking nearby" body="Try searching a different area of the valley." />
+              <EmptyState icon={<Search />} title={me ? "No open parking within 20 km" : "No parking is open right now"} body="Open the full list to see every location and its opening hours." />
             )}
             <Button asChild variant="outline" size="lg" className="mt-4 w-full">
               <Link href={`/explore${locationQuery}`}>See all parking</Link>

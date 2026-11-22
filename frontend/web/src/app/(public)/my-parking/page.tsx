@@ -2,13 +2,13 @@ import { Plus, SquareParking } from "lucide-react";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
-import { ApplicationCard } from "@/components/parking";
+import { ApplicationCard, OwnerParkingCard } from "@/components/parking";
 import { ChipLink, Chips, EmptyState, PageHead, Pagination, SectionTitle, PageSkeleton, surface } from "@/components/common";
 import { Button } from "@/components/ui/button";
 import { createDraftAction } from "@/lib/actions/applications";
 import { apiGet } from "@/lib/api";
 import { pageParam, param } from "@/lib/api-query";
-import type { ApplicationSummary, Page, StatusCounts } from "@/lib/types";
+import type { ApplicationSummary, OwnerParking, Page, StatusCounts } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "My parking" };
@@ -36,9 +36,10 @@ async function MyParkingPageContent(props: PageProps<"/my-parking">) {
   const params = await props.searchParams;
   const status = param(params, "status");
   const query = { status };
-  const [counts, apps] = await Promise.all([
+  const [counts, apps, owned] = await Promise.all([
     apiGet<StatusCounts>("/applications/mine/counts"),
     apiGet<Page<ApplicationSummary>>("/applications/mine", { status, page: pageParam(params), size: 10 }),
+    apiGet<OwnerParking[]>("/my-parkings"),
   ]);
 
   return (
@@ -80,6 +81,17 @@ async function MyParkingPageContent(props: PageProps<"/my-parking">) {
           Drafts
         </ChipLink>
       </Chips>
+
+      {owned.length > 0 && (
+        <>
+          <SectionTitle title="Live occupancy" />
+          <div className="grid gap-3 lg:grid-cols-2">
+            {owned.map((p) => (
+              <OwnerParkingCard key={p.id} parking={p} />
+            ))}
+          </div>
+        </>
+      )}
 
       <SectionTitle title="Your properties" />
       {apps.items.length ? (

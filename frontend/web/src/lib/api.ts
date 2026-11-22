@@ -5,6 +5,7 @@ import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
 
 import { buildQuery, type Query } from "./api-query";
+import { MESSAGES, friendlyMessage } from "./errors";
 import { ACCESS_COOKIE } from "./session";
 
 export const API_URL = process.env.API_URL ?? "http://localhost:8000/api/v1";
@@ -56,23 +57,26 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     init.body = options.form;
   }
 
+  const method = init.method ?? "GET";
+  const context = options.form ? "upload" : undefined;
   let response: Response;
   try {
     response = await fetch(`${API_URL}${path}${buildQuery(options.query)}`, init);
-  } catch {
-    throw new ApiError(503, "api_unreachable", "The Park Mandu service is temporarily unavailable. Please try again.");
+  } catch (cause) {
+    console.error(`[api] ${method} ${path} failed to connect`, cause);
+    throw new ApiError(503, "api_unreachable", MESSAGES.network);
   }
 
   if (response.status === 204) return undefined as T;
   const body = await response.json().catch(() => null);
   if (!response.ok) {
     const error = body?.error ?? {};
-    throw new ApiError(
-      response.status,
-      error.code ?? "http_error",
-      error.message ?? "Something went wrong. Please try again.",
-      error.fields ?? {},
-    );
+    const code: string = error.code ?? "http_error";
+    // Developer log keeps the real reason; the person gets a plain sentence.
+    if (response.status >= 500 || response.status === 401) {
+      console.error(`[api] ${method} ${path} -> ${response.status} ${code}`, error.message ?? body);
+    }
+    throw new ApiError(response.status, code, friendlyMessage(response.status, code, error.message, context), error.fields ?? {});
   }
   return body as T;
 }

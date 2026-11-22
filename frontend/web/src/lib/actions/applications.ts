@@ -58,6 +58,7 @@ export async function savePropertyAction(_: FormState, form: FormData): Promise<
         land_size_sqm: values.land_size_sqm ? Number(values.land_size_sqm) : null,
         capacity: values.capacity ? Number(values.capacity) : null,
         price_per_hour: values.pricing_mode === "hourly" ? values.price_per_hour || null : null,
+        vehicle_types: form.getAll("vehicle_types").map(String),
       },
     });
   } catch (error) {

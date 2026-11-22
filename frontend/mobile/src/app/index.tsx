@@ -8,7 +8,7 @@ import { Brand, Dot } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
 import { colors, fonts, radius, space } from "@/lib/theme";
 
-const HOME = { public: "/home", police: "/dashboard", admin: "/overview" } as const;
+const HOME = { public: "/home", police: "/dashboard" } as const;
 
 /** Splash: brand moment, then straight to the right home screen for the signed-in role. */
 export default function Splash() {
@@ -20,7 +20,7 @@ export default function Splash() {
     return () => clearTimeout(timer);
   }, [status]);
 
-  if (status === "signedIn" && user) return <Redirect href={HOME[user.role]} />;
+  if (status === "signedIn" && user && user.role !== "admin") return <Redirect href={HOME[user.role]} />;
 
   return (
     <SafeAreaView style={styles.splash}>

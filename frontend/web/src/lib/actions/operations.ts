@@ -123,6 +123,23 @@ export async function createStaffAction(_: FormState, form: FormData): Promise<F
   redirect("/admin/users");
 }
 
+const ISSUE_MESSAGES: Record<string, string> = {
+  open: "Report reopened.",
+  reviewed: "Report marked as reviewed. The reporter has been notified.",
+  closed: "Report closed. The reporter has been notified.",
+};
+
+export async function setIssueStatusAction(form: FormData): Promise<void> {
+  const status = text(form, "status");
+  try {
+    await apiRequest(`/admin/issues/${text(form, "issue_id")}`, { method: "PATCH", json: { status } });
+    await flash(ISSUE_MESSAGES[status] ?? "Report updated.", "info");
+  } catch (error) {
+    await flash(failure(error).message ?? "Could not update the report.", "error");
+  }
+  refresh();
+}
+
 export async function setUserStatusAction(form: FormData): Promise<void> {
   const status = text(form, "status");
   try {
@@ -130,6 +147,93 @@ export async function setUserStatusAction(form: FormData): Promise<void> {
     await flash(status === "suspended" ? "Account suspended and signed out everywhere." : "Account reactivated.", "info");
   } catch (error) {
     await flash(failure(error).message ?? "Could not update the account.", "error");
+  }
+  refresh();
+}
+
+// --------------------------------------------------------------------------- dispatch
+
+export interface ActionResult {
+  ok: boolean;
+  message: string;
+}
+
+/** The officer's device reports its position so incidents go to the nearest available officer. */
+export async function updateLocationAction(latitude: number, longitude: number): Promise<ActionResult> {
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return { ok: false, message: "Invalid position." };
+  try {
+    await apiRequest("/police/location", { method: "PUT", json: { latitude, longitude } });
+    return { ok: true, message: "" };
+  } catch (error) {
+    return { ok: false, message: failure(error).message ?? "" };
+  }
+}
+
+export async function respondToDispatchAction(alertId: string, accept: boolean): Promise<ActionResult> {
+  try {
+    const result = await apiRequest<{ message: string }>(`/alerts/${alertId}/${accept ? "acknowledge" : "decline"}`, {
+      method: "POST",
+      json: accept ? undefined : {},
+    });
+    refresh();
+    return { ok: true, message: result.message };
+  } catch (error) {
+    return { ok: false, message: failure(error).message ?? "" };
+  }
+}
+
+export async function dispatchResponseFormAction(form: FormData): Promise<void> {
+  const accept = form.get("response") === "accept";
+  const result = await respondToDispatchAction(text(form, "alert_id"), accept);
+  await flash(result.message, result.ok ? (accept ? "success" : "info") : "error");
+  refresh();
+}
+
+// --------------------------------------------------------------------------- suggestions
+
+export async function submitSuggestionAction(_: FormState, form: FormData): Promise<FormState> {
+  const values = { category: text(form, "category") || "other", message: text(form, "message") };
+  if (values.message.length < 10) {
+    return {
+      ok: false,
+      fields: { message: "Please write at least 10 characters so we can understand your suggestion." },
+      values,
+    };
+  }
+  try {
+    const result = await apiRequest<{ message: string }>("/suggestions", {
+      method: "POST",
+      json: { ...values, website: text(form, "website") || null },
+    });
+    refresh();
+    // Clearing `values` empties the form for the next suggestion.
+    return { ok: true, message: result.message, values: { category: values.category, message: "" } };
+  } catch (error) {
+    return failure(error, values);
+  }
+}
+
+export async function updateSuggestionAction(form: FormData): Promise<void> {
+  const status = text(form, "status");
+  const note = form.get("admin_note");
+  try {
+    await apiRequest(`/admin/suggestions/${text(form, "suggestion_id")}`, {
+      method: "PATCH",
+      json: { ...(status ? { status } : {}), ...(note !== null ? { admin_note: String(note) } : {}) },
+    });
+    await flash("Suggestion updated.");
+  } catch (error) {
+    await flash(failure(error).message ?? "Could not update the suggestion.", "error");
+  }
+  refresh();
+}
+
+export async function deleteSuggestionAction(form: FormData): Promise<void> {
+  try {
+    await apiRequest(`/admin/suggestions/${text(form, "suggestion_id")}`, { method: "DELETE" });
+    await flash("Suggestion deleted.", "info");
+  } catch (error) {
+    await flash(failure(error).message ?? "Could not delete the suggestion.", "error");
   }
   refresh();
 }

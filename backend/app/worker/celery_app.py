@@ -36,11 +36,21 @@ celery_app.conf.update(
         "app.worker.tasks.simulate_camera_telemetry": {"queue": "monitoring"},
         "app.worker.tasks.simulate_detection": {"queue": "monitoring"},
         "app.worker.tasks.escalate_stale_alerts": {"queue": "monitoring"},
+        "app.worker.tasks.dispatch_alert_task": {"queue": "notifications"},
+        "app.worker.tasks.retry_dispatches": {"queue": "notifications"},
+        "app.worker.tasks.evaluate_parked_vehicle_task": {"queue": "monitoring"},
+        "app.worker.tasks.reassess_parking_task": {"queue": "monitoring"},
+        "app.worker.tasks.reconcile_payments": {"queue": "default"},
     },
     beat_schedule={
         "camera-telemetry": {"task": "app.worker.tasks.simulate_camera_telemetry", "schedule": 30.0},
         "cctv-detections": {"task": "app.worker.tasks.simulate_detection", "schedule": 45.0},
         "escalate-stale-alerts": {"task": "app.worker.tasks.escalate_stale_alerts", "schedule": 60.0},
+        "retry-dispatches": {"task": "app.worker.tasks.retry_dispatches", "schedule": 30.0},
+        # Parked vehicles held back by traffic are judged again while they stay parked.
+        "reassess-parked-vehicles": {"task": "app.worker.tasks.reassess_parking_task", "schedule": 30.0},
+        # Verifies unfinished payments with eSewa/Khalti, confirms paid bookings, releases expired holds.
+        "reconcile-payments": {"task": "app.worker.tasks.reconcile_payments", "schedule": 60.0},
         "purge-expired-sessions": {"task": "app.worker.tasks.purge_expired_sessions", "schedule": 6 * 3600.0},
     },
 )
