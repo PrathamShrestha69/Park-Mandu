@@ -1,0 +1,30 @@
+[project]
+name = "parkmandu-api"
+version = "1.0.0"
+description = "Park Mandu — government smart parking and traffic monitoring API"
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "ASYNC", "S", "SIM"]
+ignore = [
+    "B008",  # FastAPI dependencies in defaults
+    "S311",  # random is fine for demo simulation data
+    "S101",  # assert in tests
+    "S105",  # constants that merely mention "password"/"token"
+    "UP046", # keep typing.Generic for Pydantic generic models
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S"]
+"app/seed.py" = ["E501"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+testpaths = ["tests"]

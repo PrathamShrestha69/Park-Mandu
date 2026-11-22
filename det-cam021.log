@@ -1,0 +1,205 @@
+Model loaded: C:\Users\User\Desktop\New folder\vehicle_detection\models\best.pt
+Vehicle classes: {0: 'car', 1: 'motorcycle', 2: 'bus', 3: 'truck', 4: 'other_vehicle'}
+Stopped after 3s still, parked + alert after 10s still.
+Backend accepted camera CAM-021; preview at http://10.200.29.4:8092/stream.mjpg
+Connecting to road parking video.mp4 ...
+Connected to road parking video.mp4; tracking.
+Vehicle #1389 (car, 92%) parked for 10s: sending alert.
+Alert sent for parked #1389 car (92%).
+Vehicle #1247 (bus, 87%) parked for 10s: sending alert.
+Alert sent for parked #1247 bus (87%).
+Vehicle #1792 (bus, 36%) parked for 10s: sending alert.
+Backend ignored parked #1792 bus (36%): below its 60% alert confidence.
+Vehicle #1428 (car, 67%) parked for 10s: sending alert.
+Alert sent for parked #1428 car (67%).
+Video ended; starting again.
+Connecting to road parking video.mp4 ...
+Connected to road parking video.mp4; tracking.
+Vehicle #1389 (car, 92%) parked for 10s: sending alert.
+Alert sent for parked #1389 car (92%).
+Vehicle #1247 (bus, 87%) parked for 10s: sending alert.
+Alert sent for parked #1247 bus (87%).
+Vehicle #1792 (bus, 36%) parked for 10s: sending alert.
+Backend ignored parked #1792 bus (36%): below its 60% alert confidence.
+Vehicle #1428 (car, 67%) parked for 10s: sending alert.
+Alert sent for parked #1428 car (67%).
+Video ended; starting again.
+Connecting to road parking video.mp4 ...
+Connected to road parking video.mp4; tracking.
+Vehicle #1389 (car, 92%) parked for 10s: sending alert.
+Alert sent for parked #1389 car (92%).
+Vehicle #1247 (bus, 87%) parked for 10s: sending alert.
+Alert sent for parked #1247 bus (87%).
+Vehicle #1792 (bus, 36%) parked for 10s: sending alert.
+Backend ignored parked #1792 bus (36%): below its 60% alert confidence.
+Vehicle #1428 (car, 67%) parked for 10s: sending alert.
+Alert sent for parked #1428 car (67%).
+Video ended; starting again.
+Connecting to road parking video.mp4 ...
+Connected to road parking video.mp4; tracking.
+Vehicle #1389 (car, 92%) parked for 10s: sending alert.
+Alert sent for parked #1389 car (92%).
+Vehicle #1247 (bus, 87%) parked for 10s: sending alert.
+Alert sent for parked #1247 bus (87%).
+Vehicle #1792 (bus, 36%) parked for 10s: sending alert.
+Backend ignored parked #1792 bus (36%): below its 60% alert confidence.
+Vehicle #1428 (car, 67%) parked for 10s: sending alert.
+Alert sent for parked #1428 car (67%).
+Video ended; starting again.
+Connecting to road parking video.mp4 ...
+Connected to road parking video.mp4; tracking.
+Vehicle #1389 (car, 92%) parked for 10s: sending alert.
+Alert sent for parked #1389 car (92%).
+Vehicle #1247 (bus, 87%) parked for 10s: sending alert.
+Alert sent for parked #1247 bus (87%).
+Vehicle #1792 (bus, 36%) parked for 10s: sending alert.
+Backend ignored parked #1792 bus (36%): below its 60% alert confidence.
+Vehicle #1428 (car, 67%) parked for 10s: sending alert.
+Alert sent for parked #1428 car (67%).
+Video ended; starting again.
+Connecting to road parking video.mp4 ...
+Connected to road parking video.mp4; tracking.
+Vehicle #1389 (car, 92%) parked for 10s: sending alert.
+Alert sent for parked #1389 car (92%).
+Vehicle #1247 (bus, 87%) parked for 10s: sending alert.
+Alert sent for parked #1247 bus (87%).
+Vehicle #1792 (bus, 36%) parked for 10s: sending alert.
+Backend ignored parked #1792 bus (36%): below its 60% alert confidence.
+Vehicle #1428 (car, 67%) parked for 10s: sending alert.
+Alert sent for parked #1428 car (67%).
+Video ended; starting again.
+Connecting to road parking video.mp4 ...
+Connected to road parking video.mp4; tracking.
+Vehicle #1389 (car, 92%) parked for 10s: sending alert.
+Alert sent for parked #1389 car (92%).
+Vehicle #1247 (bus, 87%) parked for 10s: sending alert.
+Alert sent for parked #1247 bus (87%).
+Vehicle #1792 (bus, 36%) parked for 10s: sending alert.
+Backend ignored parked #1792 bus (36%): below its 60% alert confidence.
+Vehicle #1428 (car, 67%) parked for 10s: sending alert.
+Alert sent for parked #1428 car (67%).
+Video ended; starting again.
+Connecting to road parking video.mp4 ...
+Connected to road parking video.mp4; tracking.
+Vehicle #1389 (car, 92%) parked for 10s: sending alert.
+Alert sent for parked #1389 car (92%).
+Vehicle #1247 (bus, 87%) parked for 10s: sending alert.
+Alert sent for parked #1247 bus (87%).
+Vehicle #1792 (bus, 36%) parked for 10s: sending alert.
+Backend ignored parked #1792 bus (36%): below its 60% alert confidence.
+Vehicle #1428 (car, 67%) parked for 10s: sending alert.
+Alert sent for parked #1428 car (67%).
+Video ended; starting again.
+Connecting to road parking video.mp4 ...
+Connected to road parking video.mp4; tracking.
+Vehicle #1389 (car, 92%) parked for 10s: sending alert.
+Alert sent for parked #1389 car (92%).
+Vehicle #1247 (bus, 87%) parked for 10s: sending alert.
+Alert sent for parked #1247 bus (87%).
+Vehicle #1792 (bus, 36%) parked for 10s: sending alert.
+Backend ignored parked #1792 bus (36%): below its 60% alert confidence.
+Vehicle #1428 (car, 67%) parked for 10s: sending alert.
+Alert sent for parked #1428 car (67%).
+Video ended; starting again.
+Connecting to road parking video.mp4 ...
+Connected to road parking video.mp4; tracking.
+Vehicle #1389 (car, 92%) parked for 10s: sending alert.
+Alert sent for parked #1389 car (92%).
+Vehicle #1247 (bus, 87%) parked for 10s: sending alert.
+Alert sent for parked #1247 bus (87%).
+Vehicle #1792 (bus, 36%) parked for 10s: sending alert.
+Backend ignored parked #1792 bus (36%): below its 60% alert confidence.
+Vehicle #1428 (car, 67%) parked for 10s: sending alert.
+Alert sent for parked #1428 car (67%).
+Video ended; starting again.
+Connecting to road parking video.mp4 ...
+Connected to road parking video.mp4; tracking.
+Vehicle #1389 (car, 92%) parked for 10s: sending alert.
+Alert sent for parked #1389 car (92%).
+Vehicle #1247 (bus, 87%) parked for 10s: sending alert.
+Alert sent for parked #1247 bus (87%).
+Vehicle #1792 (bus, 36%) parked for 10s: sending alert.
+Backend ignored parked #1792 bus (36%): below its 60% alert confidence.
+Vehicle #1428 (car, 67%) parked for 10s: sending alert.
+Alert sent for parked #1428 car (67%).
+Video ended; starting again.
+Connecting to road parking video.mp4 ...
+Connected to road parking video.mp4; tracking.
+Vehicle #1389 (car, 92%) parked for 10s: sending alert.
+Alert sent for parked #1389 car (92%).
+Vehicle #1247 (bus, 87%) parked for 10s: sending alert.
+Alert sent for parked #1247 bus (87%).
+Vehicle #1792 (bus, 36%) parked for 10s: sending alert.
+Backend ignored parked #1792 bus (36%): below its 60% alert confidence.
+Vehicle #1428 (car, 67%) parked for 10s: sending alert.
+Alert sent for parked #1428 car (67%).
+Video ended; starting again.
+Connecting to road parking video.mp4 ...
+Connected to road parking video.mp4; tracking.
+Vehicle #1389 (car, 92%) parked for 10s: sending alert.
+Alert sent for parked #1389 car (92%).
+Vehicle #1247 (bus, 87%) parked for 10s: sending alert.
+Alert sent for parked #1247 bus (87%).
+Vehicle #1792 (bus, 36%) parked for 10s: sending alert.
+Backend ignored parked #1792 bus (36%): below its 60% alert confidence.
+Vehicle #1428 (car, 67%) parked for 10s: sending alert.
+Alert sent for parked #1428 car (67%).
+Video ended; starting again.
+Connecting to road parking video.mp4 ...
+Connected to road parking video.mp4; tracking.
+Vehicle #1389 (car, 92%) parked for 10s: sending alert.
+Alert sent for parked #1389 car (92%).
+Vehicle #1247 (bus, 87%) parked for 10s: sending alert.
+Alert sent for parked #1247 bus (87%).
+Vehicle #1792 (bus, 36%) parked for 10s: sending alert.
+Backend ignored parked #1792 bus (36%): below its 60% alert confidence.
+Vehicle #1428 (car, 67%) parked for 10s: sending alert.
+Alert sent for parked #1428 car (67%).
+Video ended; starting again.
+Connecting to road parking video.mp4 ...
+Connected to road parking video.mp4; tracking.
+Vehicle #1389 (car, 92%) parked for 10s: sending alert.
+Alert sent for parked #1389 car (92%).
+Vehicle #1247 (bus, 87%) parked for 10s: sending alert.
+Alert sent for parked #1247 bus (87%).
+Vehicle #1792 (bus, 36%) parked for 10s: sending alert.
+Backend ignored parked #1792 bus (36%): below its 60% alert confidence.
+Vehicle #1428 (car, 67%) parked for 10s: sending alert.
+Alert sent for parked #1428 car (67%).
+Video ended; starting again.
+Connecting to road parking video.mp4 ...
+Connected to road parking video.mp4; tracking.
+Vehicle #1389 (car, 92%) parked for 10s: sending alert.
+Alert sent for parked #1389 car (92%).
+Vehicle #1247 (bus, 87%) parked for 10s: sending alert.
+Alert sent for parked #1247 bus (87%).
+Vehicle #1792 (bus, 36%) parked for 10s: sending alert.
+Backend ignored parked #1792 bus (36%): below its 60% alert confidence.
+Vehicle #1428 (car, 67%) parked for 10s: sending alert.
+Alert sent for parked #1428 car (67%).
+Video ended; starting again.
+Connecting to road parking video.mp4 ...
+Connected to road parking video.mp4; tracking.
+Vehicle #1389 (car, 92%) parked for 10s: sending alert.
+Alert sent for parked #1389 car (92%).
+Vehicle #1247 (bus, 87%) parked for 10s: sending alert.
+Alert sent for parked #1247 bus (87%).
+Vehicle #1792 (bus, 36%) parked for 10s: sending alert.
+Backend ignored parked #1792 bus (36%): below its 60% alert confidence.
+Vehicle #1428 (car, 67%) parked for 10s: sending alert.
+Alert sent for parked #1428 car (67%).
+Video ended; starting again.
+Connecting to road parking video.mp4 ...
+Connected to road parking video.mp4; tracking.
+Vehicle #1389 (car, 92%) parked for 10s: sending alert.
+Alert sent for parked #1389 car (92%).
+Vehicle #1247 (bus, 87%) parked for 10s: sending alert.
+Alert sent for parked #1247 bus (87%).
+Vehicle #1792 (bus, 36%) parked for 10s: sending alert.
+Backend ignored parked #1792 bus (36%): below its 60% alert confidence.
+Vehicle #1428 (car, 67%) parked for 10s: sending alert.
+Alert sent for parked #1428 car (67%).
+Video ended; starting again.
+Connecting to road parking video.mp4 ...
+Connected to road parking video.mp4; tracking.
+Backend answered 500: {"error":{"code":"server_error","message":"Something went wrong. Please try again later.","fields":{}}}

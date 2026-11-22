@@ -1,0 +1,30 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Virtual environments
+.env
+.venv/
+env/
+venv/
+ENV/
+
+# Datasets and raw archives
+datasets/
+raw/
+extracted/
+*.zip
+*.tar.gz
+
+# Ultralytics runs and temporary prediction outputs
+runs/
+predictions/
+*.log
+
+# OS-generated files
+.DS_Store
+Thumbs.db

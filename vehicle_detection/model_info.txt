@@ -1,0 +1,90 @@
+================================================================================
+PARK-MANDU: VEHICLE DETECTION MODEL SPECIFICATION
+================================================================================
+
+1. MODEL ARCHITECTURE
+--------------------------------------------------------------------------------
+Model Family:             YOLOv8 (You Only Look Once v8)
+Architecture Variant:     YOLOv8n (Nano)
+Task:                     Object Detection (Bounding Box)
+Framework:                Ultralytics YOLOv8 (v8.4.187) / PyTorch (v2.11.0+cu130)
+Parameters:               3,011,000 (~3.01 M)
+Floating Point Ops:       8.2 GFLOPs
+Input Image Resolution:   640 x 640 pixels
+Number of Classes:        5
+
+2. MODEL WEIGHTS
+--------------------------------------------------------------------------------
+Primary Inference Weights:  models/best.pt
+  - Description: Checkpoint achieving the highest validation mAP@50-95
+  - File Size:   6,506,026 bytes (6.20 MB)
+  - SHA256:      fbe5071e8a3959e2e9d93d1af9b3fff82921b6b876c229f03f5e058fe1a26ed3
+
+Final Training Weights:     models/last.pt
+  - Description: Checkpoint saved at completion of final epoch (Epoch 30)
+  - File Size:   6,506,026 bytes (6.20 MB)
+  - SHA256:      13224b0eb539a2522e0b66a4d67c69fd131ce50e34dd9373826bdda6c15d2716
+
+3. TRAINING HYPERPARAMETERS
+--------------------------------------------------------------------------------
+Pretrained Base:          yolov8n.pt (COCO pretrained weights)
+Epochs:                   30
+Batch Size:               8
+Image Size (imgsz):       640
+Optimizer:                auto (SGD / AdamW)
+Initial Learning Rate:    0.01 (lr0)
+Final Learning Rate:      0.01 (lrf)
+Momentum:                 0.937
+Weight Decay:             0.0005
+Warmup Epochs:            3.0
+Loss Gains:               box: 7.5, cls: 0.5, dfl: 1.5
+Random Seed:              42 (deterministic: true)
+Training Hardware:        Tesla T4 GPU (CUDA:0, 14,913 MiB)
+
+4. SUPPORTED VEHICLE CLASSES
+--------------------------------------------------------------------------------
+ID  Class Name      Description & Included Vehicles
+--  --------------  ------------------------------------------------------------
+0   car             Sedans, hatchbacks, SUVs, jeeps, taxis, private cars
+1   motorcycle      Motorcycles, motorbikes, scooters, scooties
+2   bus             City buses, public transit buses, minibuses, tourist coaches
+3   truck           Medium trucks, heavy trucks, tippers, container trucks, pickups
+4   other_vehicle   Auto-rickshaws, tempos (safari/electric), tractors, microbuses
+
+5. DATASET SUMMARY
+--------------------------------------------------------------------------------
+Consolidated Datasets:    6 datasets merged & deduplicated to prevent leakage
+Total Annotated Images:   7,678
+  - Training Split:       5,676 images (5,676 labels)
+  - Validation Split:     1,243 images (1,243 labels)
+  - Test Split:             759 images (  759 labels)
+Total Bounding Boxes:     64,678 annotations
+  - car:                  54,383 boxes (84.08%)
+  - motorcycle:            4,885 boxes ( 7.55%)
+  - bus:                   1,714 boxes ( 2.65%)
+  - truck:                 1,647 boxes ( 2.55%)
+  - other_vehicle:         2,049 boxes ( 3.17%)
+
+6. EVALUATION METRICS (TEST SPLIT: 759 IMAGES)
+--------------------------------------------------------------------------------
+Overall Performance:
+  - Precision:            0.8619 (86.19%)
+  - Recall:               0.8388 (83.88%)
+  - F1-Score:             0.8502 (85.02%)
+  - mAP@50:               0.8894 (88.94%)
+  - mAP@50-95:            0.6527 (65.27%)
+
+Macro-Averaged Performance:
+  - Macro Precision:      0.8619 (86.19%)
+  - Macro Recall:         0.8388 (83.88%)
+  - Macro F1-Score:       0.8484 (84.84%)
+
+Per-Class Breakdown:
+Class             Precision    Recall    F1-Score    mAP@50    mAP@50-95
+------------------------------------------------------------------------
+car                  0.9195    0.8693      0.8937    0.9482       0.7259
+motorcycle           0.8694    0.8235      0.8458    0.8679       0.6007
+bus                  0.8367    0.8795      0.8576    0.8982       0.6639
+truck                0.7946    0.8730      0.8320    0.8858       0.6528
+other_vehicle        0.8892    0.7489      0.8130    0.8469       0.6201
+================================================================================
