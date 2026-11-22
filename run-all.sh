@@ -5,8 +5,8 @@
 # Options (environment variables):
 #   BUILD=1                 rebuild backend images (docker compose up --build)
 #   SKIP="web mobile"       parts to skip: backend web mobile detector
-#   SOURCE=video2.mp4       video file / camera index / http://<PHONE-IP>:8080/video for the detector
-#   CAMERA_CODE=CAM-014     camera the detector reports for
+#   SOURCE="road parking video.mp4"  video file / camera index / http://<PHONE-IP>:8080/video
+#   CAMERA_CODE=CAM-021     camera the detector reports for (CAM-021 = demo video, CAM-014 = phone IP camera)
 #   PARK_SECONDS=10         seconds standing still before a vehicle counts as parked
 #
 # Press Ctrl+C to stop everything (the Docker backend is stopped too).
@@ -16,8 +16,8 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
 
 SKIP="${SKIP:-}"
-SOURCE="${SOURCE:-video2.mp4}"
-CAMERA_CODE="${CAMERA_CODE:-CAM-014}"
+SOURCE="${SOURCE:-road parking video.mp4}"
+CAMERA_CODE="${CAMERA_CODE:-CAM-021}"
 PARK_SECONDS="${PARK_SECONDS:-10}"
 
 skip() { [[ " $SKIP " == *" $1 "* ]]; }

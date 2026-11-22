@@ -558,10 +558,12 @@ PARKINGS = [
     ),
 ]
 
+# Only five cameras are live: CAM-014 takes the phone IP camera, CAM-021 the demo video
+# (road parking video.mp4), and CAM-001 / CAM-018 / CAM-029 are simulated. The rest stay offline.
 CAMERAS = [
     ("CAM-001", "Kalanki Chowk", "Ring Road, Kalanki", "Kalanki", "Zone 05", 27.6933, 85.2810, CameraStatus.LIVE),
-    ("CAM-003", "Balaju Chowk", "Ring Road, Balaju", "Balaju", "Zone 04", 27.7275, 85.3045, CameraStatus.LIVE),
-    ("CAM-005", "Gongabu Bus Park", "Ring Road, Gongabu", "Gongabu", "Zone 04", 27.7350, 85.3140, CameraStatus.LIVE),
+    ("CAM-003", "Balaju Chowk", "Ring Road, Balaju", "Balaju", "Zone 04", 27.7275, 85.3045, CameraStatus.OFFLINE),
+    ("CAM-005", "Gongabu Bus Park", "Ring Road, Gongabu", "Gongabu", "Zone 04", 27.7350, 85.3140, CameraStatus.OFFLINE),
     (
         "CAM-008",
         "Maharajgunj Chakrapath",
@@ -572,7 +574,7 @@ CAMERAS = [
         85.3375,
         CameraStatus.OFFLINE,
     ),
-    ("CAM-010", "Chabahil Chowk", "Ring Road, Chabahil", "Chabahil", "Zone 06", 27.7175, 85.3460, CameraStatus.LIVE),
+    ("CAM-010", "Chabahil Chowk", "Ring Road, Chabahil", "Chabahil", "Zone 06", 27.7175, 85.3460, CameraStatus.OFFLINE),
     (
         "CAM-012",
         "Lazimpat Road",
@@ -581,7 +583,7 @@ CAMERAS = [
         "Zone 02",
         27.7215,
         85.3200,
-        CameraStatus.LIVE,
+        CameraStatus.OFFLINE,
     ),
     (
         "CAM-014",
@@ -601,10 +603,20 @@ CAMERAS = [
         "Zone 01",
         27.7118,
         85.3185,
-        CameraStatus.LIVE,
+        CameraStatus.OFFLINE,
     ),
     ("CAM-018", "Putalisadak Chowk", "Putalisadak Road", "Putalisadak", "Zone 01", 27.7040, 85.3225, CameraStatus.LIVE),
-    ("CAM-020", "New Road Gate", "New Road, Khichapokhari", "New Road", "Zone 01", 27.7040, 85.3112, CameraStatus.LIVE),
+    ("CAM-020", "New Road Gate", "New Road, Khichapokhari", "New Road", "Zone 01", 27.7040, 85.3112, CameraStatus.OFFLINE),
+    (
+        "CAM-021",
+        "Tripureshwor Road",
+        "Tripureshwor Marg",
+        "Tripureshwor",
+        "Zone 01",
+        27.6939,
+        85.3110,
+        CameraStatus.LIVE,
+    ),
     (
         "CAM-022",
         "Sundhara Junction",
@@ -613,7 +625,7 @@ CAMERAS = [
         "Zone 01",
         27.7005,
         85.3135,
-        CameraStatus.LIVE,
+        CameraStatus.OFFLINE,
     ),
     (
         "CAM-024",
@@ -623,7 +635,7 @@ CAMERAS = [
         "Zone 07",
         27.6945,
         85.3125,
-        CameraStatus.LIVE,
+        CameraStatus.OFFLINE,
     ),
     (
         "CAM-026",
@@ -633,7 +645,7 @@ CAMERAS = [
         "Zone 07",
         27.6905,
         85.3190,
-        CameraStatus.MAINTENANCE,
+        CameraStatus.OFFLINE,
     ),
     (
         "CAM-027",
@@ -643,7 +655,7 @@ CAMERAS = [
         "Zone 07",
         27.6945,
         85.3225,
-        CameraStatus.LIVE,
+        CameraStatus.OFFLINE,
     ),
     ("CAM-029", "Baneshwor Chowk", "New Baneshwor Road", "Baneshwor", "Zone 08", 27.6890, 85.3365, CameraStatus.LIVE),
     (
@@ -654,7 +666,7 @@ CAMERAS = [
         "Zone 08",
         27.6860,
         85.3465,
-        CameraStatus.LIVE,
+        CameraStatus.OFFLINE,
     ),
     (
         "CAM-033",
@@ -664,9 +676,9 @@ CAMERAS = [
         "Zone 08",
         27.6780,
         85.3490,
-        CameraStatus.LIVE,
+        CameraStatus.OFFLINE,
     ),
-    ("CAM-035", "Thamel Chowk", "Thamel Marg", "Thamel", "Zone 02", 27.7152, 85.3123, CameraStatus.LIVE),
+    ("CAM-035", "Thamel Chowk", "Thamel Marg", "Thamel", "Zone 02", 27.7152, 85.3123, CameraStatus.OFFLINE),
     ("CAM-037", "Jawalakhel Chowk", "Jawalakhel Road", "Jawalakhel", "Zone 09", 27.6730, 85.3135, CameraStatus.OFFLINE),
     (
         "CAM-039",
@@ -676,9 +688,9 @@ CAMERAS = [
         "Zone 09",
         27.6865,
         85.3160,
-        CameraStatus.LIVE,
+        CameraStatus.OFFLINE,
     ),
-    ("CAM-041", "Bagbazar Road", "Bagbazar, Kathmandu-28", "Bagbazar", "Zone 01", 27.7055, 85.3185, CameraStatus.LIVE),
+    ("CAM-041", "Bagbazar Road", "Bagbazar, Kathmandu-28", "Bagbazar", "Zone 01", 27.7055, 85.3185, CameraStatus.OFFLINE),
     (
         "CAM-043",
         "Satdobato Chowk",
@@ -687,7 +699,7 @@ CAMERAS = [
         "Zone 09",
         27.6585,
         85.3245,
-        CameraStatus.MAINTENANCE,
+        CameraStatus.OFFLINE,
     ),
 ]
 
@@ -1224,12 +1236,12 @@ def seed() -> None:
         active_specs = [
             ("CAM-014", ViolationType.RESTRICTED_LANE, "Car", "White", "Ba 3 Cha 4827", 0.94, 1, None),
             ("CAM-018", ViolationType.NEAR_INTERSECTION, "Taxi", "Black", "Ba 1 Ja 2210", 0.91, 4, None),
-            ("CAM-020", ViolationType.DOUBLE_PARKING, "Microbus", "Blue", "Ba 2 Kha 9012", 0.88, 9, None),
-            ("CAM-035", ViolationType.FOOTPATH, "Motorbike", "Red", "Ba 86 Pa 1123", 0.83, 14, None),
+            ("CAM-001", ViolationType.DOUBLE_PARKING, "Microbus", "Blue", "Ba 2 Kha 9012", 0.88, 9, None),
+            ("CAM-021", ViolationType.FOOTPATH, "Motorbike", "Red", "Ba 86 Pa 1123", 0.83, 14, None),
             ("CAM-029", ViolationType.BUS_STOP, "SUV", "Silver", "Ba 12 Cha 3391", 0.9, 18, rajendra),
-            ("CAM-022", ViolationType.OVERTIME, "Car", "Grey", "Ba 5 Cha 7781", 0.79, 26, None),
+            ("CAM-001", ViolationType.OVERTIME, "Car", "Grey", "Ba 5 Cha 7781", 0.79, 26, None),
             (
-                "CAM-041",
+                "CAM-018",
                 ViolationType.LOADING_ZONE,
                 "Delivery van",
                 "White",

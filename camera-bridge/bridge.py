@@ -492,9 +492,8 @@ def main() -> None:
     )
     parser.add_argument("--min-passers", type=int, default=2, help="Vehicles that must drive past a standing vehicle before it is PARKED (default 2)")
     parser.add_argument(
-        "--isolated-seconds", type=float, default=120, help="With no queue around it, standing this long alone is PARKED (default 120)"
+        "--isolated-seconds", type=float, default=30, help="With no queue around it, standing this long alone is PARKED (default 30)"
     )
-    parser.add_argument("--confirm-seconds", type=float, default=10, help="A PARKED / NOT_PARKED change must hold this long (default 10)")
     parser.add_argument("--road-quad", help='Speed calibration: four image corners of a road patch, "x,y;x,y;x,y;x,y"')
     parser.add_argument("--road-width-m", type=float, help="Real width of that patch in metres (first edge)")
     parser.add_argument("--road-length-m", type=float, help="Real length of that patch in metres (second edge)")
@@ -541,7 +540,6 @@ def main() -> None:
             min_dwell_seconds=args.park_seconds,
             min_passers=args.min_passers,
             isolated_dwell_seconds=max(args.isolated_seconds, args.park_seconds),
-            confirm_seconds=args.confirm_seconds,
         )
         classifier = ParkingClassifier(rules)
         client = ParkingStatusClient(

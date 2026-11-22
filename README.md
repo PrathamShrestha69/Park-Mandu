@@ -161,8 +161,9 @@ shows as `--source`.
 - If the phone reconnects to Wi-Fi, its address can change. Check the camera app and update `--source`.
 - When Windows asks whether to let Python through the firewall, click **Allow**. Without that, the web
   and mobile apps cannot load the live video from port 8090.
-- For a quicker demo, add `--park-seconds 10`. That is the minimum standing time before a vehicle can be
-  judged PARKED (default 30 s); other traffic must also have driven past it.
+- A vehicle standing still for 30 s is judged PARKED and the alert goes out straight away. Only a
+  queue of standing vehicles (a traffic jam) holds it back. For a quicker demo, add `--park-seconds 10`
+  (then 10 s is enough when other traffic drives past it).
 
 ### CCTV cameras instead of a phone
 Use the camera's RTSP address, for example Hikvision

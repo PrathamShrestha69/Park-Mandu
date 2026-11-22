@@ -493,13 +493,13 @@ def test_parked_in_traffic_jam_is_suppressed_then_alerted_when_traffic_clears(ca
     assert alerts_for(camera) == 1
 
 
-def test_unknown_traffic_suppresses(camera) -> None:
+def test_unknown_traffic_still_alerts(camera) -> None:
     traffic(camera, None, calibrated=False)  # uncalibrated camera: traffic never measured
     key = f"k-{uuid.uuid4().hex[:8]}"
     report(camera, key, "PARKED", 1)
-    row = vehicle(key, lambda v: v.decision != EnforcementDecision.PENDING)
-    assert row.decision == EnforcementDecision.SUPPRESSED_TRAFFIC_UNKNOWN
-    assert alerts_for(camera) == 0
+    row = vehicle(key, lambda v: v.alert_id is not None)
+    assert row.decision == EnforcementDecision.ALERTED and row.traffic_status == "UNKNOWN"
+    assert alerts_for(camera) == 1
 
 
 def test_not_parked_and_stale_updates_never_alert(camera) -> None:

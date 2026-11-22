@@ -10,8 +10,8 @@ A vehicle that only ever stands inside a queue of other standing vehicles stays 
 long the jam lasts. When the queue releases and the vehicles around it drive off while it stays, those
 departing vehicles count as passing traffic, so a vehicle parked behind a jam is still recognised.
 
-Every change must hold for ``confirm_seconds`` before it is reported, and a parked vehicle has to drive
-off for ``depart_seconds`` (and actually move away from where it stood) before it is reported as gone,
+A vehicle is reported PARKED as soon as it has stood ``min_dwell_seconds`` (30 s), and a parked vehicle
+has to drive off for ``depart_seconds`` (and actually move away from where it stood) before it is reported as gone,
 so a flicker in the tracker never flips the state.
 
 This module has no OpenCV or model dependency. It receives what the existing tracker already knows
@@ -39,16 +39,14 @@ class ParkingRules:
     min_dwell_seconds: float = 30.0
     # Different vehicles that must drive past while it stands (the road flows, this vehicle does not).
     min_passers: int = 2
-    # With no queue around it, standing this long on its own is parking (no red light lasts this long).
-    isolated_dwell_seconds: float = 120.0
+    # With no queue around it, standing this long on its own is parking.
+    isolated_dwell_seconds: float = 30.0
     # A neighbour counts as having passed once it travelled this many of the vehicle's own box sizes.
     pass_distance: float = 1.0
     # Neighbours are vehicles whose centre is within this many box sizes of the vehicle.
     proximity: float = 3.0
     # Share of standing neighbours (with nobody moving nearby) that makes the vehicle part of a queue.
     queue_share: float = 0.6
-    # A new state must hold this long before it is reported.
-    confirm_seconds: float = 10.0
     # A parked vehicle must move for this long, and away from where it stood, before it is no longer parked.
     depart_seconds: float = 4.0
     depart_distance: float = 0.5
@@ -105,8 +103,6 @@ class VehicleMemory:
     passer_origin: dict[int, tuple[float, float]] = field(default_factory=dict)
     passers: set[int] = field(default_factory=set)
     queue_seconds: float = 0.0
-    candidate_since: float | None = None
-    candidate_reason: str = ""
     moving_since: float | None = None
     parked_box: Box | None = None
     reason: str = ""
@@ -274,14 +270,10 @@ class ParkingClassifier:
         if memory.state == NOT_PARKED:
             reason = self._parked_reason(memory, now)
             if reason is None:
-                memory.candidate_since = None
                 return None
-            if memory.candidate_since is None:
-                memory.candidate_since, memory.candidate_reason = now, reason
-            if now - memory.candidate_since < rules.confirm_seconds:
-                return None
+            # Standing still for min_dwell_seconds is the confirmation: no extra wait before reporting.
             memory.parked_box = memory.box
-            return self._change(memory, PARKED, now, memory.candidate_reason)
+            return self._change(memory, PARKED, now, reason)
         if self._departed(memory, now):
             memory.reset_stand()
             memory.parked_box = None
@@ -292,7 +284,6 @@ class ParkingClassifier:
         memory.state = state
         memory.seq += 1
         memory.reason = reason
-        memory.candidate_since = None
         return self.transition(memory, now)
 
     def transition(self, memory: VehicleMemory, now: float) -> Transition:
