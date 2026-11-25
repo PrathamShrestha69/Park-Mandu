@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Alert, StyleSheet, View } from "react-native";
 
 import { PagedList } from "@/components/paged-list";
-import { ApplicationCard, openApplication } from "@/components/parking";
+import { ApplicationCard, DeleteDraftButton, openApplication } from "@/components/parking";
 import { Badge, Button, Card, Chips, Empty, Header, Row, Txt } from "@/components/ui";
 import { api, formErrors } from "@/lib/api";
 import { invalidate, useApi } from "@/lib/queries";
@@ -58,7 +58,12 @@ export default function MyParking() {
     <PagedList<ApplicationSummary>
       path="/applications/mine"
       query={{ status: status === "all" ? undefined : status }}
-      renderItem={(app) => <ApplicationCard app={app} onPress={() => openApplication(app)} />}
+      renderItem={(app) => (
+        <View>
+          <ApplicationCard app={app} onPress={() => openApplication(app)} />
+          {app.status === "draft" && <DeleteDraftButton applicationId={app.id} />}
+        </View>
+      )}
       empty={
         <Empty
           icon={<SquareParking size={26} color={colors.blue600} />}

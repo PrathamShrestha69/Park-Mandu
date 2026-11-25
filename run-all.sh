@@ -7,7 +7,7 @@
 #   SKIP="web mobile"       parts to skip: backend web mobile detector
 #   SOURCE="road parking video.mp4"  video file / camera index / http://<PHONE-IP>:8080/video
 #   CAMERA_CODE=CAM-021     camera the detector reports for (CAM-021 = demo video, CAM-014 = phone IP camera)
-#   PARK_SECONDS=10         seconds standing still before a vehicle counts as parked
+#   PARK_SECONDS=30         seconds standing still before a vehicle counts as parked (minimum 30)
 #
 # Press Ctrl+C to stop everything (the Docker backend is stopped too).
 
@@ -18,7 +18,7 @@ cd "$ROOT"
 SKIP="${SKIP:-}"
 SOURCE="${SOURCE:-road parking video.mp4}"
 CAMERA_CODE="${CAMERA_CODE:-CAM-021}"
-PARK_SECONDS="${PARK_SECONDS:-10}"
+PARK_SECONDS="${PARK_SECONDS:-30}"
 
 skip() { [[ " $SKIP " == *" $1 "* ]]; }
 need() { command -v "$1" >/dev/null 2>&1 || { echo "Missing required tool: $1" >&2; exit 1; }; }

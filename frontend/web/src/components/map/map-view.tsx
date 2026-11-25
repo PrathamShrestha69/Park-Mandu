@@ -182,8 +182,10 @@ export function MapView({
     }
     mapRef.current = map;
     // A style switch (standard <-> satellite) removes every layer that is not part of the style,
-    // so the route is drawn again each time a style finishes loading.
-    map.on("style.load", () => drawRoute(map, routeRef.current ?? null));
+    // so the route is added back whenever a style change leaves the map without it.
+    map.on("styledata", () => {
+      if (!map.getSource(ROUTE_SOURCE)) drawRoute(map, routeRef.current ?? null);
+    });
     const stored = savedLayer();
     if (stored === "satellite") {
       map.once("style.load", () => setLayer("satellite"));
@@ -346,7 +348,6 @@ const ROUTE_SOURCE = "pm-route";
 
 /** Draws (or clears) the navigation route as two line layers: a white casing and the blue route. */
 function drawRoute(map: MapLibre, route: [number, number][] | null) {
-  if (!map.isStyleLoaded()) return; // "style.load" draws it as soon as the style is ready
   const data: GeoJSON.Feature<GeoJSON.LineString> | GeoJSON.FeatureCollection =
     route && route.length > 1
       ? { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: route } }
@@ -356,7 +357,12 @@ function drawRoute(map: MapLibre, route: [number, number][] | null) {
     source.setData(data);
     return;
   }
-  map.addSource(ROUTE_SOURCE, { type: "geojson", data });
+  // Not isStyleLoaded(): that is also false while tiles are loading, when layers can already be added.
+  try {
+    map.addSource(ROUTE_SOURCE, { type: "geojson", data });
+  } catch {
+    return; // The style itself isn't ready yet; the "styledata" listener draws the route once it is.
+  }
   map.addLayer({
     id: "pm-route-casing",
     type: "line",

@@ -1,9 +1,10 @@
+import { useMutation } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router } from "expo-router";
-import { BadgeCheck, Check, ChevronRight, CircleCheck, CircleX, Clock, FileText, MapPin, Navigation, PenLine, X } from "lucide-react-native";
-import { Pressable, StyleSheet, View } from "react-native";
+import { BadgeCheck, Check, ChevronRight, CircleCheck, CircleX, Clock, FileText, MapPin, Navigation, PenLine, Trash2, X } from "lucide-react-native";
+import { Alert, Pressable, StyleSheet, View } from "react-native";
 
-import { authHeaders } from "@/lib/api";
+import { api, authHeaders, formErrors } from "@/lib/api";
 import { API_URL } from "@/lib/config";
 import {
   APPLICATION_STATUS,
@@ -19,10 +20,11 @@ import {
   vehicleTypesLabel,
   walkingMinutes,
 } from "@/lib/format";
+import { invalidate } from "@/lib/queries";
 import { colors, toneColors, usePalette } from "@/lib/theme";
 import type { ApplicationDetail, ApplicationStatus, ApplicationSummary, ParkingSummary } from "@/lib/types";
 
-import { Badge, Card, KV, Row, Txt } from "./ui";
+import { Badge, Button, Card, KV, Row, Txt } from "./ui";
 
 /** Says in words what the marker colour means: free spaces, full, or closed. */
 export function AvailabilityBadge({ parking }: { parking: ParkingSummary }) {
@@ -137,6 +139,34 @@ export function ApplicationCard({ app, onPress, showApplicant }: { app: Applicat
         <ChevronRight size={20} color={colors.slate400} />
       </Row>
     </Card>
+  );
+}
+
+/** "Delete draft" button for an unsubmitted parking application; asks before deleting. */
+export function DeleteDraftButton({ applicationId, onDeleted }: { applicationId: string; onDeleted?: () => void }) {
+  const remove = useMutation({
+    mutationFn: () => api(`/applications/${applicationId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      // Leave the screen first, so a screen showing this draft does not try to reload it.
+      onDeleted?.();
+      void invalidate("/applications");
+    },
+    onError: (e) => Alert.alert("Could not delete the draft", formErrors(e).message ?? undefined),
+  });
+  return (
+    <Button
+      title="Delete draft"
+      variant="ghost"
+      small
+      icon={<Trash2 size={16} color={colors.red700} />}
+      loading={remove.isPending}
+      onPress={() =>
+        Alert.alert("Delete this draft?", "The draft and its uploaded documents will be removed. This cannot be undone.", [
+          { text: "Cancel", style: "cancel" },
+          { text: "Delete", style: "destructive", onPress: () => remove.mutate() },
+        ])
+      }
+    />
   );
 }
 

@@ -1,4 +1,4 @@
-import { CircleCheck, Clock, FileText, MapPin, MessageSquare, PenLine, Trash2 } from "lucide-react";
+import { CircleCheck, Clock, FileText, MapPin, MessageSquare, PenLine } from "lucide-react";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
@@ -8,7 +8,7 @@ import { Callout, PageHead, SectionTitle, PageSkeleton, surface } from "@/compon
 import { ApplicationStatusBadge, TONE_TILE } from "@/components/parking";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { deleteDraftAction } from "@/lib/actions/applications";
+import { DeleteDraft } from "@/components/delete-draft";
 import { apiGet } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import type { ApplicationDetail } from "@/lib/types";
@@ -67,14 +67,7 @@ async function ApplicationStatusPageContent(props: PageProps<"/my-parking/[id]">
               <PenLine /> {app.status === "draft" ? "Continue application" : "Edit and resubmit"}
             </Link>
           </Button>
-          {app.status === "draft" && (
-            <form action={deleteDraftAction}>
-              <input type="hidden" name="application_id" value={app.id} />
-              <Button type="submit" variant="ghost" size="lg" className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive">
-                <Trash2 /> Delete draft
-              </Button>
-            </form>
-          )}
+          {app.status === "draft" && <DeleteDraft applicationId={app.id} name={app.property_name} className="sm:w-auto" />}
         </div>
       )}
 

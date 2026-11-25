@@ -64,6 +64,7 @@ def _vehicle(**overrides: object) -> SimpleNamespace:
         "alert_id": None,
         "last_seen_at": NOW - timedelta(seconds=5),
         "confidence": 0.9,
+        "evidence": {"reason": "standing_alone"},
     }
     return SimpleNamespace(**{**base, **overrides})
 
@@ -87,6 +88,11 @@ def test_parked_in_normal_flow_alerts() -> None:
 def test_parked_in_traffic_jam_is_suppressed() -> None:
     decision = _decide(_vehicle(), _camera(traffic_level=TrafficLevel.CONGESTED))
     assert decision == EnforcementDecision.SUPPRESSED_TRAFFIC_JAM
+
+
+def test_parked_with_traffic_passing_is_alerted_even_in_a_jam() -> None:
+    vehicle = _vehicle(evidence={"reason": "traffic_passing", "passers": 3})
+    assert _decide(vehicle, _camera(traffic_level=TrafficLevel.CONGESTED)) == EnforcementDecision.ALERTED
 
 
 def test_parked_with_unknown_or_old_traffic_is_alerted() -> None:

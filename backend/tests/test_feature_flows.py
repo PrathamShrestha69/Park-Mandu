@@ -426,7 +426,7 @@ def traffic(code: str, speed: float | None, calibrated: bool = True) -> None:
     assert r.status_code == 200, r.text
 
 
-def report(code: str, key: str, state: str, seq: int, box=(0.4, 0.4, 0.5, 0.5)) -> dict:  # type: ignore[no-untyped-def]
+def report(code: str, key: str, state: str, seq: int, box=(0.4, 0.4, 0.5, 0.5), reason: str = "standing_alone") -> dict:  # type: ignore[no-untyped-def]
     body = {
         "camera_code": code,
         "bridge_id": "test",
@@ -441,7 +441,7 @@ def report(code: str, key: str, state: str, seq: int, box=(0.4, 0.4, 0.5, 0.5)) 
                 "confidence": 0.9,
                 "box": list(box),
                 "stationary_seconds": 45,
-                "evidence": {"reason": "traffic_passing", "passers": 3},
+                "evidence": {"reason": reason, "passers": 3 if reason == "traffic_passing" else 0},
             }
         ],
     }
@@ -490,6 +490,15 @@ def test_parked_in_traffic_jam_is_suppressed_then_alerted_when_traffic_clears(ca
     traffic(camera, 33)  # the jam clears while the vehicle stays parked
     row = vehicle(key, lambda v: v.alert_id is not None)
     assert row.alert_id is not None and row.decision == EnforcementDecision.ALERTED
+    assert alerts_for(camera) == 1
+
+
+def test_parked_with_traffic_driving_around_it_is_alerted_despite_jam(camera) -> None:
+    traffic(camera, 4)  # congested, but other vehicles drive past this one: it is the cause, not a victim
+    key = f"k-{uuid.uuid4().hex[:8]}"
+    report(camera, key, "PARKED", 1, reason="traffic_passing")
+    row = vehicle(key, lambda v: v.alert_id is not None)
+    assert row.decision == EnforcementDecision.ALERTED and row.traffic_status == "TRAFFIC_JAM"
     assert alerts_for(camera) == 1
 
 

@@ -58,6 +58,7 @@ export function MapView({
   selectedId,
   selectOnTap = false,
   bottomPadding = 0,
+  topInset = 0,
   recenterKey,
   onSelect,
   onDeselect,
@@ -85,6 +86,8 @@ export function MapView({
   selectOnTap?: boolean;
   /** Height in pixels covered at the bottom (a sheet), so framing keeps markers above it. */
   bottomPadding?: number;
+  /** Height in pixels covered at the top (search bar, filters): the map buttons sit below it. */
+  topInset?: number;
   /** Change this value to move the map back to the user's position. */
   recenterKey?: number;
   onSelect?: (point: MapPoint) => void;
@@ -108,8 +111,8 @@ export function MapView({
   const { dark } = usePalette();
   const html = useMemo(
     // The layer is read when the page is built; switching later happens inside the page.
-    () => buildHtml({ latitude: startLat, longitude: startLng }, initialZoom, picker, dark, selectOnTap, preferredLayer),
-    [startLat, startLng, initialZoom, picker, dark, selectOnTap],
+    () => buildHtml({ latitude: startLat, longitude: startLng }, initialZoom, picker, dark, selectOnTap, preferredLayer, topInset),
+    [startLat, startLng, initialZoom, picker, dark, selectOnTap, topInset],
   );
   // The view is only re-framed when the set of markers (or having a position at all) changes, so
   // selecting a marker or a moving position dot never throws away where the user panned to.
@@ -166,7 +169,7 @@ export function MapView({
   );
 }
 
-function buildHtml(center: Coords, zoom: number, picker: boolean, dark: boolean, selectOnTap: boolean, layer: BaseLayer): string {
+function buildHtml(center: Coords, zoom: number, picker: boolean, dark: boolean, selectOnTap: boolean, layer: BaseLayer, topInset: number): string {
   return `<!doctype html><html><head>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
 <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
@@ -177,7 +180,8 @@ function buildHtml(center: Coords, zoom: number, picker: boolean, dark: boolean,
   .pin{position:relative;width:28px;height:28px;border:2px solid #fff;border-radius:9px;display:grid;place-items:center;box-shadow:0 1px 2px rgba(0,0,0,.18),0 4px 10px rgba(0,0,0,.14);color:#fff;font:700 13px sans-serif;transition:transform .12s}
   .round{border-radius:50%;width:26px;height:26px}
   ${dark ? "body:not(.sat) .maplibregl-canvas{filter:invert(1) hue-rotate(180deg) brightness(.88) contrast(.92) saturate(.6)}" : ""}
-  .layer{position:absolute;top:84px;right:10px;z-index:3;width:29px;height:29px;border:0;border-radius:4px;background:#fff;box-shadow:0 0 0 2px rgba(0,0,0,.1);display:grid;place-items:center;padding:0;color:#333}
+  .maplibregl-ctrl-top-right{top:${topInset}px}
+  .layer{position:absolute;top:${topInset + 84}px;right:10px;z-index:3;width:29px;height:29px;border:0;border-radius:4px;background:#fff;box-shadow:0 0 0 2px rgba(0,0,0,.1);display:grid;place-items:center;padding:0;color:#333}
   .layer svg{width:17px;height:17px}
   body.sat .layer{background:#1f5ed9;color:#fff}
   .green{background:#0fa05c}.blue{background:#1f5ed9}.amber{background:#f2ab35}
@@ -209,8 +213,6 @@ function buildHtml(center: Coords, zoom: number, picker: boolean, dark: boolean,
     e.stopPropagation();
     layer = layer === 'satellite' ? 'standard' : 'satellite';
     map.setStyle(STYLES[layer]);
-    // setStyle drops every layer that is not part of the style: draw the route again once it is ready.
-    map.once('style.load', () => drawRoute(lastRoute));
     document.body.classList.toggle('sat', layer === 'satellite');
     labelLayer();
     post({ type: 'layer', layer: layer });
@@ -222,16 +224,18 @@ function buildHtml(center: Coords, zoom: number, picker: boolean, dark: boolean,
   let pinMarker = null;
   let lastFitKey = null, lastSelected = null, lastRecenter = 0, lastRoute = null, lastRouteFit = 0;
   function drawRoute(coords) {
-    if (!map.isStyleLoaded()) { map.once('style.load', () => drawRoute(lastRoute)); return; }
     const data = coords && coords.length > 1
       ? { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: coords } }
       : { type: 'FeatureCollection', features: [] };
     const src = map.getSource('pm-route');
     if (src) { src.setData(data); return; }
-    map.addSource('pm-route', { type: 'geojson', data: data });
+    // Throws while the style itself isn't ready; the 'styledata' listener draws the route once it is.
+    try { map.addSource('pm-route', { type: 'geojson', data: data }); } catch (e) { return; }
     map.addLayer({ id: 'pm-route-casing', type: 'line', source: 'pm-route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#ffffff', 'line-width': 9 } });
     map.addLayer({ id: 'pm-route-line', type: 'line', source: 'pm-route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#1f5ed9', 'line-width': 5 } });
   }
+  // setStyle drops every layer that is not part of the style: add the route back whenever it is missing.
+  map.on('styledata', () => { if (!map.getSource('pm-route')) drawRoute(lastRoute); });
   function el(p) {
     const b = document.createElement('button'); b.className = 'm';
     b.setAttribute('aria-label', p.title + (p.subtitle ? ', ' + p.subtitle : ''));

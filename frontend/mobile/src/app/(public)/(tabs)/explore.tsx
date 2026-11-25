@@ -156,6 +156,8 @@ export default function Explore() {
       <MapView
         fill
         selectOnTap
+        // Keeps the zoom and map type buttons clear of the search bar and filter row.
+        topInset={insets.top + 96}
         points={points}
         me={nav.me ?? coords}
         fitCount={coords ? 6 : undefined}

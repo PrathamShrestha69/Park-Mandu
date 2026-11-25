@@ -50,6 +50,7 @@ from urllib.parse import urlparse
 
 import cv2
 import numpy as np
+import torch
 from parking_availability import (
     PARKED,
     Observation,
@@ -68,6 +69,8 @@ BACKEND_ENV = ROOT / "backend" / ".env"
 HEARTBEAT_SECONDS = 20
 TELEMETRY_SECONDS = 2
 RECONNECT_SECONDS = 3
+# No vehicle is ever shown or reported as parked before it has stood still this long.
+MIN_PARK_SECONDS = 30.0
 MAX_TRACKS_SENT = 100  # backend limit per telemetry message
 
 # A vehicle counts as standing still when its centre moved less than this fraction of its own box
@@ -356,6 +359,14 @@ class Tracker:
         if self.parking:
             self.parking.reset()
 
+    def standing_seconds(self, track: Track, now: float) -> float:
+        """How long the vehicle has been standing, as shown on the video and sent to the backend."""
+        still = track.stopped_seconds(now)
+        if self.parking is None:
+            return still
+        # A parked vehicle's stand survives box jitter and tracker id changes; the track's own timer does not.
+        return max(still, self.parking.parked_seconds(track.id, now))
+
     def status(self, track: Track, now: float) -> str:
         still = track.stopped_seconds(now)
         if self.parking is not None:
@@ -416,7 +427,7 @@ class Tracker:
             x1, y1, x2, y2 = (int(v) for v in track.box)
             color = COLORS[status]
             cv2.rectangle(annotated, (x1, y1), (x2, y2), color, 3 if status != "moving" else 2)
-            still = track.stopped_seconds(now)
+            still = self.standing_seconds(track, now)
             label = f"#{track.id} {track.vehicle_type} {track.confidence:.0%}"
             if status != "moving":
                 label += f" {status.upper()} {still:.0f}s"
@@ -474,6 +485,20 @@ def vehicle_photo(frame: np.ndarray, change: Transition) -> str | None:
 # --------------------------------------------------------------------------- main
 
 
+def pick_device(requested: str | None) -> str:
+    """The NVIDIA GPU whenever PyTorch can use one, otherwise the CPU. Says which one it is."""
+    device = requested or ("0" if torch.cuda.is_available() else "cpu")
+    if device == "cpu":
+        print("WARNING: running the AI on the CPU, which is slow. For the GPU see README.md, section 1.", flush=True)
+        return device
+    if not torch.cuda.is_available():
+        raise SystemExit(
+            f"--device {device} needs CUDA, but PyTorch {torch.__version__} cannot use a GPU. See README.md, section 1."
+        )
+    print(f"Running the AI on GPU {device}: {torch.cuda.get_device_name(int(device))}", flush=True)
+    return device
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Track vehicles and raise parking alerts for a Park Mandu camera")
     parser.add_argument(
@@ -487,8 +512,9 @@ def main() -> None:
     parser.add_argument(
         "--park-seconds",
         type=float,
-        help="Police cameras: minimum standing time before a vehicle can be judged PARKED (default 30; "
-        "other traffic must also pass it). Parking-lot cameras: standing this long takes a space (default 10)",
+        default=MIN_PARK_SECONDS,
+        help="Standing time before a vehicle can be PARKED (default and minimum 30). On police cameras it "
+        "must also not be queued in traffic; on parking-lot cameras it then takes a space.",
     )
     parser.add_argument("--min-passers", type=int, default=2, help="Vehicles that must drive past a standing vehicle before it is PARKED (default 2)")
     parser.add_argument(
@@ -499,6 +525,7 @@ def main() -> None:
     parser.add_argument("--road-length-m", type=float, help="Real length of that patch in metres (second edge)")
     parser.add_argument("--violation", default="no_parking_zone", help="Violation type sent with alerts (default no_parking_zone)")
     parser.add_argument("--no-realtime", action="store_true", help="Process a video file as fast as possible instead of at its own speed")
+    parser.add_argument("--device", help='"0" = first NVIDIA GPU, "cpu" = processor (default: GPU if available)')
     parser.add_argument("--port", type=int, default=8090)
     parser.add_argument("--backend", default="http://localhost:8000/api/v1")
     parser.add_argument("--public-host", help="Address other devices use to reach this PC (default: detected)")
@@ -511,6 +538,7 @@ def main() -> None:
     if not MODEL_PATH.exists():
         raise FileNotFoundError(f"Missing model: {MODEL_PATH}")
     key = read_ingest_key()
+    device = pick_device(args.device)
 
     config = detector_config(args, key)
     args.parking_mode = config.get("mode") == "parking"
@@ -518,9 +546,9 @@ def main() -> None:
         args.source = config.get("source_url")
         if not args.source:
             raise SystemExit(f"No --source given and the backend has no stream address saved for {args.camera_code}.")
-    if args.park_seconds is None:
-        # In a parking lot a vehicle that has stood still briefly is taking a space.
-        args.park_seconds = 10.0 if args.parking_mode else 30.0
+    if args.park_seconds < MIN_PARK_SECONDS:
+        print(f"--park-seconds {args.park_seconds:g} is too short; using the {MIN_PARK_SECONDS:g}s minimum.", flush=True)
+        args.park_seconds = MIN_PARK_SECONDS
     if args.parking_mode:
         capacity = config.get("capacity")
         print(
@@ -584,7 +612,13 @@ def main() -> None:
             tracker.reset()
             started, frames = time.monotonic(), 0
             for result in model.track(
-                source=source, conf=args.conf, stream=True, verbose=False, persist=False, tracker="bytetrack.yaml"
+                source=source,
+                conf=args.conf,
+                device=device,
+                stream=True,
+                verbose=False,
+                persist=False,
+                tracker="bytetrack.yaml",
             ):
                 frames += 1
                 if frames == 1:

@@ -93,6 +93,11 @@ class ParkingAvailabilityBridge:
     def state_of(self, track_id: int) -> ParkingState:
         return self.classifier.state_of(track_id)
 
+    def parked_seconds(self, track_id: int, now: float) -> float:
+        """How long a PARKED vehicle has been standing; 0 for a vehicle that is not PARKED."""
+        memory = self.classifier.vehicles.get(track_id)
+        return memory.dwell(now) if memory and memory.state == PARKED else 0.0
+
     def observe(
         self,
         now: float,

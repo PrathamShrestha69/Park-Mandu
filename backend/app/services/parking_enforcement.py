@@ -5,7 +5,9 @@ The bridge reports PARKED / NOT_PARKED per vehicle. This module decides what hap
     Vehicle      Traffic       Action
     NOT_PARKED   any           no alert
     PARKED       NORMAL_FLOW   check the illegal-parking rules, alert if they all hold
-    PARKED       TRAFFIC_JAM   hold the alert back (the vehicle may just be queued)
+    PARKED       TRAFFIC_JAM   hold the alert back (the vehicle may just be queued), unless other
+                               vehicles are driving past it (evidence reason "traffic_passing"): then
+                               it is probably causing the jam, so alert
     PARKED       unknown/old   check the illegal-parking rules, alert if they all hold
 
 Traffic comes from the camera's existing traffic level (see services/traffic.py); nothing here measures
@@ -43,6 +45,9 @@ log = logging.getLogger(__name__)
 SAME_VEHICLE_IOU = 0.5
 SAME_VEHICLE_WINDOW = timedelta(hours=2)
 
+# The bridge's evidence reason for a vehicle that other vehicles drove past while it stood still.
+PASSING_TRAFFIC_REASON = "traffic_passing"
+
 SUPPRESSED = {EnforcementDecision.SUPPRESSED_TRAFFIC_JAM, EnforcementDecision.SUPPRESSED_TRAFFIC_UNKNOWN}
 
 
@@ -74,8 +79,9 @@ def decide(vehicle: ParkedVehicle, camera: Camera, now: datetime) -> tuple[Enfor
         return EnforcementDecision.LOW_CONFIDENCE, traffic
     if camera.status == CameraStatus.MAINTENANCE:
         return EnforcementDecision.CAMERA_UNAVAILABLE, traffic
-    # Only a measured jam holds the alert back; unknown or old traffic does not.
-    if traffic == TrafficStatus.TRAFFIC_JAM:
+    # Only a measured jam holds the alert back; unknown or old traffic does not. A vehicle that other
+    # traffic is driving around is not queued in the jam: it is most likely causing it, so it is alerted.
+    if traffic == TrafficStatus.TRAFFIC_JAM and (vehicle.evidence or {}).get("reason") != PASSING_TRAFFIC_REASON:
         return EnforcementDecision.SUPPRESSED_TRAFFIC_JAM, traffic
     return EnforcementDecision.ALERTED, traffic
 

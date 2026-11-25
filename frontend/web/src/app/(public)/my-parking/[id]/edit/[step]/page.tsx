@@ -6,6 +6,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { OwnerSummary, PropertySummary, documentUrl } from "@/components/application-view";
 import { Callout, PageHead, PageSkeleton, surface } from "@/components/common";
+import { DeleteDraft } from "@/components/delete-draft";
 import { ActionForm, CheckField, FieldError, FormAlert, SelectField, SubmitButton, TextField } from "@/components/forms";
 import { LocationPicker } from "@/components/map/location-picker";
 import { Button } from "@/components/ui/button";
@@ -439,6 +440,11 @@ async function EditStepPageContent(props: PageProps<"/my-parking/[id]/edit/[step
         {meta.key === "documents" && <DocumentsStep app={app} />}
         {meta.key === "review" && <ReviewStep app={app} />}
       </div>
+      {app.status === "draft" && (
+        <div className="mt-6">
+          <DeleteDraft applicationId={app.id} name={app.property_name} />
+        </div>
+      )}
     </div>
   );
 }

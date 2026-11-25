@@ -1,25 +1,15 @@
-import { useMutation } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
-import { CircleCheck, MessageSquare, PenLine, Trash2 } from "lucide-react-native";
-import { Alert } from "react-native";
+import { CircleCheck, MessageSquare, PenLine } from "lucide-react-native";
 
-import { DocumentList, OwnerSummary, PropertySummary, StatusBadge, Timeline, WIZARD_STEPS, reviewSteps } from "@/components/parking";
+import { DeleteDraftButton, DocumentList, OwnerSummary, PropertySummary, StatusBadge, Timeline, WIZARD_STEPS, reviewSteps } from "@/components/parking";
 import { Button, Callout, Card, ErrorView, Header, Loading, Screen, SectionTitle, Txt } from "@/components/ui";
-import { api } from "@/lib/api";
-import { invalidate, useApi } from "@/lib/queries";
+import { useApi } from "@/lib/queries";
 import { colors } from "@/lib/theme";
 import type { ApplicationDetail } from "@/lib/types";
 
 export default function ApplicationStatus() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const query = useApi<ApplicationDetail>(`/applications/${id}`);
-  const remove = useMutation({
-    mutationFn: () => api(`/applications/${id}`, { method: "DELETE" }),
-    onSuccess: () => {
-      void invalidate("/applications");
-      router.back();
-    },
-  });
 
   if (query.isPending) return <Loading />;
   if (query.isError) return <Screen><ErrorView error={query.error} onRetry={() => query.refetch()} /></Screen>;
@@ -55,15 +45,7 @@ export default function ApplicationStatus() {
           onPress={() => router.push(`/application/${app.id}/edit/${resume}` as never)}
         />
       )}
-      {app.status === "draft" && (
-        <Button
-          title="Delete draft"
-          variant="ghost"
-          icon={<Trash2 size={16} color={colors.slate700} />}
-          loading={remove.isPending}
-          onPress={() => Alert.alert("Delete this draft?", "This cannot be undone.", [{ text: "Cancel", style: "cancel" }, { text: "Delete", style: "destructive", onPress: () => remove.mutate() }])}
-        />
-      )}
+      {app.status === "draft" && <DeleteDraftButton applicationId={app.id} onDeleted={() => router.replace("/my-parking" as never)} />}
 
       {app.status !== "draft" && (
         <>

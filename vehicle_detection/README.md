@@ -205,8 +205,22 @@ source .venv/bin/activate
 # On Windows (CMD):
 .venv\Scripts\activate.bat
 
+# NVIDIA GPU: install the CUDA build of PyTorch first (the default Windows package is CPU-only)
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
+
 # Install dependencies
 pip install -r requirements.txt
+
+# Check the GPU is used: expect a version ending in +cu130, then True
+python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
+```
+
+**Run the AI on the GPU.** It needs an NVIDIA GPU with driver 580 or newer. If the check shows `+cpu`,
+run `pip uninstall -y torch torchvision` and repeat the CUDA install line. Without an NVIDIA GPU, skip
+that line. To run the live camera detector on the GPU, from the project folder:
+
+```powershell
+.\vehicle_detection\.venv\Scripts\python camera-bridge\bridge.py --device 0 --source "Road parking Test video.mp4" --camera-code CAM-021
 ```
 
 ### 2. Command-Line Inference

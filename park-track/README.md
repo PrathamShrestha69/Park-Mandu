@@ -9,11 +9,20 @@ Install Python 3.10+, then from this folder:
 ```bash
 python -m venv .venv
 .venv\Scripts\activate          # macOS/Linux: source .venv/bin/activate
+python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130   # NVIDIA GPU
 python -m pip install -r requirements.txt
 ```
 
-For GPU inference install a PyTorch build that matches your CUDA version first (see pytorch.org); the
-default PyTorch wheel is CPU-only.
+**Run the AI on the GPU.** The `torch torchvision` line installs the CUDA build; it needs an NVIDIA GPU
+with driver 580 or newer and must come before the requirements, because the default PyTorch package on
+Windows is CPU-only. Check it:
+
+```bash
+python -c "import torch; print(torch.__version__, torch.cuda.is_available())"    # expect ...+cu130 True
+```
+
+If it shows `+cpu`, run `python -m pip uninstall -y torch torchvision` and repeat the CUDA install line.
+Without an NVIDIA GPU, skip that line.
 
 ## Run offline (no backend)
 
@@ -61,7 +70,7 @@ Useful options (`python main.py --help` lists all):
 | Option | Default | Notes |
 | --- | --- | --- |
 | `--violation` | `no_parking_zone` | what kind of violation this camera watches (`bus_stop_obstruction`, `footpath_obstruction`, …) |
-| `--park-seconds` | 30 | lower it (e.g. 10) for demos |
+| `--park-seconds` | 30 | time a vehicle must stand still |
 | `--window` | 1.0 | raise to 2–3 if the source or CPU gives fewer than ~3 frames per second |
 | `--preview-port` | 8090 | annotated MJPEG at `/stream.mjpg`, still frame at `/snapshot.jpg`; `0` disables it |
 | `--public-host` | LAN IP | the address phones and browsers use to reach the preview |
@@ -126,7 +135,7 @@ Jetson) at that site and point `--api-url` at the public backend.
 
 The program writes rows to `output.csv` only while a vehicle is `stopped` or a `parking_candidate`. Each row includes the time in seconds, vehicle ID, class, status, confidence, and bounding box.
 
-Inference uses CUDA GPU 0 when PyTorch detects a CUDA-capable GPU; otherwise it runs on the CPU. For GPU inference, install a PyTorch build that matches your CUDA setup; the default PyTorch installation may be CPU-only.
+Inference uses CUDA GPU 0 when PyTorch detects a CUDA-capable GPU; otherwise it runs on the CPU. The start-up log says which (`Running inference on CUDA GPU 0`); see [Install](#install) to enable the GPU.
 
 When a vehicle becomes a `parking_candidate`, its cropped image is saved once in the `parked` folder as a quality 95 JPEG. The filename includes the vehicle ID and elapsed time, for example `vehicle_1067_time_35.42_seconds.jpg`.
 

@@ -27,6 +27,9 @@ On the laptop/PC that runs everything:
 - **Node.js 20 or newer**: https://nodejs.org
 - **Python 3.10 or newer**: https://www.python.org (tick "Add Python to PATH")
 - **Git**
+- **NVIDIA GPU (recommended for the AI)**, for example an RTX 4050, with driver 580 or newer. Run
+  `nvidia-smi`: it must list the GPU and show *CUDA Version* 13.0 or higher. A separate CUDA Toolkit
+  install is not needed.
 
 Then from the project folder:
 
@@ -47,12 +50,40 @@ cd frontend\mobile
 npm install
 cd ..\..
 
-# AI detector
+# AI detector (park-track). Install the GPU (CUDA) build of PyTorch BEFORE the requirements.
 cd park-track
 python -m venv .venv
+.\.venv\Scripts\python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
+.\.venv\Scripts\python -m pip install -r requirements.txt
+cd ..
+
+# AI detector used by camera-bridge\bridge.py and run-all.sh
+cd vehicle_detection
+python -m venv .venv
+.\.venv\Scripts\python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
 .\.venv\Scripts\python -m pip install -r requirements.txt
 cd ..
 ```
+
+### Check that the AI uses the GPU
+
+```powershell
+.\vehicle_detection\.venv\Scripts\python -c "import torch; print(torch.__version__, torch.cuda.is_available(), torch.cuda.get_device_name(0))"
+```
+
+Expected: a version ending in `+cu130`, `True` and the name of your GPU. Check `park-track\.venv` the
+same way. If it prints `+cpu` or an error, the CPU-only PyTorch is installed. Replace it (repeat in
+each of the two folders):
+
+```powershell
+cd vehicle_detection
+.\.venv\Scripts\python -m pip uninstall -y torch torchvision
+.\.venv\Scripts\python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
+cd ..
+```
+
+Without an NVIDIA GPU, leave out the `torch torchvision` install lines: the AI then runs, slowly, on
+the CPU.
 
 In `backend\.env`, replace the three `change-me` secrets. The commands that generate them are written
 next to each one in the file. `SIMULATE_DETECTIONS=true` keeps the demo cameras alive; a camera that
@@ -91,13 +122,27 @@ To try it without a camera, use the sample video and attach the AI to the demo c
 (one line):
 
 ```powershell
-.\.venv\Scripts\python main.py --source "..oad parking video.mp4" --realtime --park-seconds 10 --camera-code CAM-021 --road-quad "265,475;690,593;890,387;575,345" --road-width-m 7 --road-length-m 12
+.\.venv\Scripts\python main.py --source "..oad parking video.mp4" --realtime --camera-code CAM-021 --road-quad "265,475;690,593;890,387;575,345" --road-width-m 7 --road-length-m 12
 ```
 
 The three `--road-…` options calibrate speed for that video (approximate: they assume 3.5 m lanes and
 6 m between lane dashes). Without them vehicles are still tracked and counted, but average speed and
 the traffic level are not measured. See [park-track/README.md](park-track/README.md) for calibrating
 your own camera.
+
+**Run the AI on the GPU.** The detector picks the NVIDIA GPU by itself and says so when it starts:
+`Running inference on CUDA GPU 0`. If it says `CPU`, see *Check that the AI uses the GPU* in section 1.
+
+The police and My Parking camera pages can also be fed by `camera-bridge\bridge.py` (the detector with
+the Parking Availability Bridge). `--device 0` requires the GPU and stops with an error if CUDA is not
+available, instead of falling back to the CPU:
+
+```powershell
+.\vehicle_detection\.venv\Scripts\python camera-bridge\bridge.py --device 0 --source "Road parking Test video.mp4" --camera-code CAM-021
+```
+
+It prints `Running the AI on GPU 0: <name of your GPU>`. Run one detector per camera, each with its own
+`--port` (8090, 8091, ...).
 
 **Terminal 4: Mobile app**
 ```powershell
@@ -162,8 +207,8 @@ shows as `--source`.
 - When Windows asks whether to let Python through the firewall, click **Allow**. Without that, the web
   and mobile apps cannot load the live video from port 8090.
 - A vehicle standing still for 30 s is judged PARKED and the alert goes out straight away. Only a
-  queue of standing vehicles (a traffic jam) holds it back. For a quicker demo, add `--park-seconds 10`
-  (then 10 s is enough when other traffic drives past it).
+  queue of standing vehicles (a traffic jam) holds it back. `camera-bridge/bridge.py` never marks a
+  vehicle PARKED before 30 s; `--park-seconds` can only make that longer.
 
 ### CCTV cameras instead of a phone
 Use the camera's RTSP address, for example Hikvision
@@ -207,7 +252,7 @@ while you use Expo Go.
 | Camera page shows counts but "Camera not calibrated for speed" | Add `--road-quad`, `--road-width-m` and `--road-length-m` (see `park-track/README.md`). |
 | A parked vehicle was logged by the detector but no alert appeared | The detector prints `Backend ignored parked …`: the detection confidence was under the backend's 60% alert threshold. |
 | Administrator cannot sign in on the phone | Intended: administrators use the web app at http://localhost:3000. |
-| Detector is slow (under 3 frames/s) | Lower the camera resolution, or add `--window 2.5`. An NVIDIA GPU with CUDA PyTorch is much faster. |
+| Detector is slow, or says it is running on the CPU | Install the CUDA build of PyTorch (section 1, *Check that the AI uses the GPU*). Without an NVIDIA GPU, lower the camera resolution, or add `--window 2.5` (`park-track`). |
 | Mobile app cannot reach the API | Same Wi-Fi, and allow port 8000 through the firewall. |
 
 Paid parking (eSewa and Khalti): [PAYMENT_GATEWAY_DOCUMENTATION.md](PAYMENT_GATEWAY_DOCUMENTATION.md).

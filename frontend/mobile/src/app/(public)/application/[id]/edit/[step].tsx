@@ -8,7 +8,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Alert, Pressable, StyleSheet, Switch, TextInput, View } from "react-native";
 
 import { MapView } from "@/components/map-view";
-import { DocumentList, OwnerSummary, PropertySummary, WIZARD_STEPS, documentUrl } from "@/components/parking";
+import { DeleteDraftButton, DocumentList, OwnerSummary, PropertySummary, WIZARD_STEPS, documentUrl } from "@/components/parking";
 import { Button, Callout, Card, Chips, ErrorView, Field, FormMessage, Header, Loading, MultiChips, Row, Screen, Txt } from "@/components/ui";
 import { api, authHeaders, formErrors } from "@/lib/api";
 import { DAYS_LABEL, DOCUMENT_LABEL, PARKING_TYPE_LABEL, VEHICLE_TYPES, VEHICLE_TYPE_LABEL, formatBytes } from "@/lib/format";
@@ -475,6 +475,7 @@ export default function EditStep() {
       {step === "owner" && <OwnerStep app={app} />}
       {step === "documents" && <DocumentsStep app={app} />}
       {step === "review" && <ReviewStep app={app} />}
+      {app.status === "draft" && <DeleteDraftButton applicationId={app.id} onDeleted={() => router.replace("/my-parking" as never)} />}
     </Screen>
   );
 }

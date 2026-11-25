@@ -4,6 +4,7 @@ import { Suspense } from "react";
 
 import { ApplicationCard, OwnerParkingCard } from "@/components/parking";
 import { ChipLink, Chips, EmptyState, PageHead, Pagination, SectionTitle, PageSkeleton, surface } from "@/components/common";
+import { DeleteDraft } from "@/components/delete-draft";
 import { Button } from "@/components/ui/button";
 import { createDraftAction } from "@/lib/actions/applications";
 import { apiGet } from "@/lib/api";
@@ -97,11 +98,13 @@ async function MyParkingPageContent(props: PageProps<"/my-parking">) {
       {apps.items.length ? (
         <div className="grid gap-3 lg:grid-cols-2">
           {apps.items.map((app) => (
-            <ApplicationCard
-              key={app.id}
-              app={app}
-              href={app.status === "draft" ? `/my-parking/${app.id}/edit/${["location", "property", "owner", "documents", "review"][Math.min(app.completed_step, 4)]}` : `/my-parking/${app.id}`}
-            />
+            <div key={app.id} className="flex min-w-0 flex-col gap-1">
+              <ApplicationCard
+                app={app}
+                href={app.status === "draft" ? `/my-parking/${app.id}/edit/${["location", "property", "owner", "documents", "review"][Math.min(app.completed_step, 4)]}` : `/my-parking/${app.id}`}
+              />
+              {app.status === "draft" && <DeleteDraft applicationId={app.id} name={app.property_name} />}
+            </div>
           ))}
         </div>
       ) : (
